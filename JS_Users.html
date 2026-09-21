@@ -1,0 +1,157 @@
+<!-- JS_Users.html -->
+<script>
+  // ==========================================
+  // CRUD DE USUARIOS (Editar, Crear, Eliminar)
+  // ==========================================
+
+  // ✅ Abrir modal de editar (llamado por onclick)
+  window.openEditUserModal = function(userId) {
+    console.log("🔍 ID recibido:", userId);
+    
+    google.script.run
+      .withSuccessHandler(function(response) {
+        // ✅ Parsear JSON a objeto
+        var data = JSON.parse(response);
+        console.log("✅ Datos del usuario:", data);
+        
+        if (data && data.success && data.user) {
+          const user = data.user;
+          document.getElementById('edit_user_id').value = user.user_id;
+          document.getElementById('edit_nombre').value = user.nombre || '';
+          document.getElementById('edit_apellido').value = user.apellido || '';
+          document.getElementById('edit_email').value = user.email || '';
+          document.getElementById('edit_telefono').value = user.telefono || '';
+          document.getElementById('edit_wpp').value = user.wpp || '';
+          document.getElementById('edit_roleId').value = user.rol_id;
+          document.getElementById('edit_password').value = '';
+          
+          $('#modalEditarUsuario').modal('show');
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al obtener datos del usuario.' });
+        }
+      })
+      .withFailureHandler(function(err) {
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .getUserById({ user_id: userId });
+  };
+
+  // ✅ Guardar edición (llamado por onsubmit)
+  window.guardarEdicionUsuario = function(event) {
+    event.preventDefault();
+
+    const btn = document.querySelector('#formEditarUsuario button[type="submit"]');
+    btn.textContent = 'Guardando...';
+    btn.disabled = true;
+
+    const payload = {
+      user_id: document.getElementById('edit_user_id').value,
+      nombre: document.getElementById('edit_nombre').value,
+      apellido: document.getElementById('edit_apellido').value,
+      email: document.getElementById('edit_email').value,
+      telefono: document.getElementById('edit_telefono').value,
+      wpp: document.getElementById('edit_wpp').value,
+      roleId: document.getElementById('edit_roleId').value,
+      password: document.getElementById('edit_password').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        btn.textContent = 'Guardar Cambios';
+        btn.disabled = false;
+        
+        var data = JSON.parse(response);
+        
+        if (data && data.success) {
+          $('#modalEditarUsuario').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Usuario actualizado!', timer: 2000 });
+          window.top.location.href = SCRIPT_URL + "?p=dashboard";
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al actualizar el usuario.' });
+        }
+      })
+      .withFailureHandler(function(err) {
+        btn.textContent = 'Guardar Cambios';
+        btn.disabled = false;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .updateUser(payload);
+  };
+
+  // ✅ Eliminar usuario (llamado por onclick)
+  window.confirmDeleteUser = function(userId) {
+    Swal.fire({
+      title: '¿Eliminar este usuario?',
+      text: 'Esta acción no se puede deshacer',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            var data = JSON.parse(response);
+            
+            if (data && data.success) {
+              Swal.fire({ icon: 'success', title: '¡Usuario eliminado!', timer: 2000 });
+              window.top.location.href = SCRIPT_URL + "?p=dashboard";
+            } else {
+              Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al eliminar el usuario.' });
+            }
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+          })
+          .deleteUser({ user_id: userId });
+      }
+    });
+  };
+
+  // ✅ Crear usuario (Modal)
+  document.addEventListener('DOMContentLoaded', function() {
+    const createUserForm = document.getElementById('formCrearUsuario');
+    if (createUserForm) {
+      createUserForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const btn = createUserForm.querySelector('button[type="submit"]');
+        btn.textContent = 'Creando...';
+        btn.disabled = true;
+
+        const payload = {
+          name: document.getElementById('create_nombre').value,
+          lastName: document.getElementById('create_apellido').value,
+          email: document.getElementById('create_email').value,
+          phone: document.getElementById('create_telefono').value,
+          wpp: document.getElementById('create_wpp').value,
+          roleId: parseInt(document.getElementById('create_roleId').value),
+          password: document.getElementById('create_password').value
+        };
+
+        google.script.run
+          .withSuccessHandler(function(response) {
+            btn.textContent = 'Crear Usuario';
+            btn.disabled = false;
+            
+            var data = JSON.parse(response);
+            
+            if (data && data.success) {
+              $('#modalCrearUsuario').modal('hide');
+              Swal.fire({ icon: 'success', title: '¡Usuario creado!', timer: 2000 });
+              window.top.location.href = SCRIPT_URL + "?p=dashboard";
+            } else {
+              Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al crear el usuario.' });
+            }
+          })
+          .withFailureHandler(function(err) {
+            btn.textContent = 'Crear Usuario';
+            btn.disabled = false;
+            Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+          })
+          .createUser(payload);
+      });
+    }
+  });
+</script>
