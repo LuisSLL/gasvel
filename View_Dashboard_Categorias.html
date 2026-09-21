@@ -1,0 +1,188 @@
+<!-- View_Dashboard_Categorias.html -->
+<div class="content-header p-0 mb-3">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <h1 class="page-title m-0">Gestión de Categorías</h1>
+    <button type="button" class="btn btn-navy" data-toggle="modal" data-target="#modalCrearCategoria">
+      <i class="fas fa-plus mr-1"></i> Crear Categoría
+    </button>
+  </div>
+</div>
+
+<section class="content">
+  <div class="container-fluid">
+    <div class="card card-outline card-navy">
+      <div class="card-body">
+        <table id="categoriasTable" class="table table-striped table-hover w-100">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Descripción</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <? if (categorias && categorias.length > 0) { ?>
+              <? for (var i = 0; i < categorias.length; i++) { ?>
+                <tr>
+                  <td><?= categorias[i].cat_id ?></td>
+                  <td><?= categorias[i].nombre ?></td>
+                  <td><?= categorias[i].descripcion || '' ?></td>
+                  <td class="text-center">
+                    <button class="btn btn-sm btn-warning" onclick="openEditCategoriaModal(<?= categorias[i].cat_id ?>)">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="confirmDeleteCategoria(<?= categorias[i].cat_id ?>)">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              <? } ?>
+            <? } ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODAL CREAR CATEGORÍA -->
+<div class="modal fade" id="modalCrearCategoria" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-plus mr-2"></i>Crear Categoría</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formCrearCategoria" onsubmit="guardarCategoria(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="create_cat_nombre" class="form-control" placeholder="Ej: Hamburguesas" required>
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="create_cat_desc" class="form-control" placeholder="Descripción opcional">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-navy">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR CATEGORÍA -->
+<div class="modal fade" id="modalEditarCategoria" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Editar Categoría</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formEditarCategoria" onsubmit="actualizarCategoria(event)">
+        <div class="modal-body">
+          <input type="hidden" id="edit_cat_id">
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="edit_cat_nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="edit_cat_desc" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-navy">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.openEditCategoriaModal = function(catId) {
+    var categorias = <?= json_encode(Base_Model.all(CONFIG.DB.CATEGORIAS)) ?>;
+    var cat = categorias.find(function(c) {
+      return String(c.cat_id) === String(catId);
+    });
+
+    if (cat) {
+      document.getElementById('edit_cat_id').value = cat.cat_id;
+      document.getElementById('edit_cat_nombre').value = cat.nombre || '';
+      document.getElementById('edit_cat_desc').value = cat.descripcion || '';
+      $('#modalEditarCategoria').modal('show');
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Categoría no encontrada' });
+    }
+  };
+
+  window.guardarCategoria = function(event) {
+    event.preventDefault();
+    var nombre = document.getElementById('create_cat_nombre').value;
+    var descripcion = document.getElementById('create_cat_desc').value;
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          $('#modalCrearCategoria').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Categoría creada!', timer: 2000 });
+          window.top.location.href = '?p=dashboard/categorias';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .createCategoria({ nombre: nombre, descripcion: descripcion });
+  };
+
+  window.actualizarCategoria = function(event) {
+    event.preventDefault();
+    var catId = document.getElementById('edit_cat_id').value;
+    var nombre = document.getElementById('edit_cat_nombre').value;
+    var descripcion = document.getElementById('edit_cat_desc').value;
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          $('#modalEditarCategoria').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Categoría actualizada!', timer: 2000 });
+          window.top.location.href = '?p=dashboard/categorias';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .updateCategoria({ cat_id: catId, nombre: nombre, descripcion: descripcion });
+  };
+
+  window.confirmDeleteCategoria = function(catId) {
+    Swal.fire({
+      title: '¿Eliminar esta categoría?',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      confirmButtonText: 'Sí, eliminar'
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            var data = JSON.parse(response);
+            if (data.success) {
+              Swal.fire({ icon: 'success', title: '¡Categoría eliminada!', timer: 2000 });
+              window.top.location.href = '?p=dashboard/categorias';
+            } else {
+              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+          })
+          .deleteCategoria({ cat_id: catId });
+      }
+    });
+  };
+</script>
