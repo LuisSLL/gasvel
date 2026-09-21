@@ -1,0 +1,115 @@
+<!-- View_Login.html -->
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-header">
+      <p class="eyebrow">Acceso al sistema</p>
+      <h1>Iniciar Sesión</h1>
+      <p class="menu-lede">Ingresa tus credenciales para acceder a tu cuenta.</p>
+    </div>
+    
+    <form id="loginForm" class="auth-form">
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="usuario@correo.com" required autocomplete="username">
+      </div>
+      
+      <div class="form-group">
+        <label for="loginPass">Contraseña</label>
+        <input type="password" id="loginPass" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      
+      <button type="submit" class="btn-auth-primary w-100">Ingresar</button>
+      
+      <p class="auth-alt">¿No tienes cuenta? <a href="<?= scriptUrl ?>?p=registro">Regístrate aquí</a></p>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('loginForm');
+    if (!form) return;
+
+    // Helper para obtener configuración visual según el tema
+    function getSwalTheme() {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      return {
+        background: isDark ? '#1e1e1e' : '#ffffff',
+        color: isDark ? '#ffffff' : '#000000',
+        confirmButtonColor: '#E2572B'
+      };
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      var email = document.getElementById('loginEmail').value.trim();
+      var pass = document.getElementById('loginPass').value;
+      var btn = form.querySelector('button[type="submit"]');
+      var originalBtnText = btn.textContent;
+
+      btn.textContent = 'Ingresando...';
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          btn.textContent = originalBtnText;
+          btn.disabled = false;
+
+          // Adaptador: Procesa tanto Objeto como JSON String
+          var data = response;
+          if (typeof response === 'string') {
+            try {
+              data = JSON.parse(response);
+            } catch (err) {
+              console.error('Error al parsear JSON:', err);
+              data = { success: false, message: 'Respuesta del servidor no válida.' };
+            }
+          }
+
+          var swalBase = getSwalTheme();
+          var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+
+          if (data && data.success) {
+            if (data.user) {
+              localStorage.setItem('gasvel_user', JSON.stringify(data.user));
+              localStorage.setItem('gasvel_token', 'session_active_' + Date.now());
+            }
+
+            var redirectUrl = data.url || (baseUrl + '?p=home');
+            if (data.user && (data.user.rol_id == 1 || data.user.rol_id == 2)) {
+              redirectUrl = baseUrl + '?p=dashboard';
+            }
+
+            Swal.fire(Object.assign({}, swalBase, {
+              icon: 'success',
+              title: '¡Bienvenido!',
+              text: data.message || 'Sesión iniciada correctamente',
+              timer: 1200,
+              showConfirmButton: false
+            })).then(function() {
+              window.top.location.href = redirectUrl;
+            });
+
+          } else {
+            Swal.fire(Object.assign({}, swalBase, {
+              icon: 'error',
+              title: 'Error de acceso',
+              text: (data && data.message) || 'Credenciales incorrectas.'
+            }));
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.textContent = originalBtnText;
+          btn.disabled = false;
+
+          Swal.fire(Object.assign({}, getSwalTheme(), {
+            icon: 'error',
+            title: 'Error de conexión',
+            text: (err && err.message) || 'No se pudo conectar con el servidor.'
+          }));
+        })
+        .login({ email: email, password: pass });
+    });
+  });
+</script>
