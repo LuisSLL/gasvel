@@ -1,0 +1,93 @@
+<!-- JS_Global.html -->
+<script>
+  /**
+   * Inicialización global de la UI y Sesión
+   */
+  document.addEventListener('DOMContentLoaded', function() {
+    checkSessionState();
+  });
+
+  /**
+   * Verifica el token en localStorage y ajusta los botones del header
+   */
+  function checkSessionState() {
+    const token = localStorage.getItem('gasvel_token');
+    const userRaw = localStorage.getItem('gasvel_user');
+
+    const authButtons = document.getElementById('authButtons');
+    const userButtons = document.getElementById('userButtons');
+    const userNameElem = document.getElementById('userName');
+    const userAvatarElem = document.getElementById('userAvatar');
+
+    if (token && userRaw) {
+      try {
+        const user = JSON.parse(userRaw);
+        if (authButtons) authButtons.style.display = 'none';
+        if (userButtons) userButtons.style.display = 'flex';
+        
+        if (userNameElem) userNameElem.textContent = user.nombre || 'Usuario';
+        if (userAvatarElem) userAvatarElem.textContent = (user.nombre || 'U').charAt(0).toUpperCase();
+      } catch (e) {
+        console.error('Error al parsear usuario de localStorage:', e);
+        logoutUser(false);
+      }
+    } else {
+      if (authButtons) authButtons.style.display = 'flex';
+      if (userButtons) userButtons.style.display = 'none';
+    }
+  }
+
+  /**
+   * Cierra la sesión activa borrando datos locales y la sesión en el servidor
+   */
+  function logoutUser(showNotification = true) {
+    const executeLogout = function() {
+      // 1. Limpiar almacenamiento local del cliente
+      localStorage.removeItem('gasvel_token');
+      localStorage.removeItem('gasvel_user');
+      sessionStorage.clear();
+
+      // 2. Limpiar sesión en el servidor (UserProperties)
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function() {
+            window.top.location.href = SCRIPT_URL + '?p=login';
+          })
+          .withFailureHandler(function() {
+            window.top.location.href = SCRIPT_URL + '?p=login';
+          })
+          .cerrarSesionServidor();
+      } else {
+        window.top.location.href = SCRIPT_URL + '?p=login';
+      }
+    };
+
+    if (showNotification && typeof Swal !== 'undefined') {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Sesión cerrada',
+        text: 'Has salido correctamente.',
+        timer: 1500,
+        showConfirmButton: false,
+        background: isDark ? '#1e1e1e' : '#ffffff',
+        color: isDark ? '#ffffff' : '#000000'
+      }).then(() => {
+        executeLogout();
+      });
+    } else {
+      executeLogout();
+    }
+  }
+
+  /**
+   * Alterna entre modo oscuro y claro guardando la preferencia
+   */
+  function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    document.body.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('gasvel_theme', currentTheme);
+  }
+</script>
