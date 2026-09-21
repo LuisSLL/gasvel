@@ -1,0 +1,64 @@
+<!-- View_Layout_Login.html -->
+<!DOCTYPE html>
+<html lang="es" data-theme="<?!= theme ?>">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GASVEL - Acceso</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
+    <style>
+      <?!= HtmlService.createHtmlOutputFromFile('CSS_Home').getContent(); ?>
+    </style>
+</head>
+<body data-theme="<?!= theme ?>">
+
+    <!-- HEADER SIMPLIFICADO (Solo Logo y Tema) -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark">G</span>
+          <div class="brand-text">
+            <span class="brand-name">GASVEL</span>
+            <span class="brand-sub">Cocina &amp; Barra</span>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <!-- Toggle de Tema -->
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema" onclick="toggleTheme()">
+            <span class="theme-toggle-track">
+              <span class="theme-toggle-thumb">
+                <img src="https://img.icons8.com/ios-glyphs/30/ffffff/sun--v1.png" alt="Sol" class="icon-sun-img">
+                <img src="https://img.icons8.com/ios-glyphs/30/ffffff/moon-symbol.png" alt="Luna" class="icon-moon-img">
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENIDO PRINCIPAL (Aquí se inyecta Login o Registro) -->
+    <main>
+      <?!= content ?>
+    </main>
+
+    <!-- CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- ✅ 1. Declarar la URL global del script -->
+    <script>
+      const SCRIPT_URL = "<?= scriptUrl ?>";
+    </script>
+
+    <!-- ✅ 2. INYECTAR JS_GLOBAL PRIMERO -->
+    <?!= HtmlService.createHtmlOutputFromFile('JS_Global').getContent(); ?>
+</body>
+</html>
