@@ -1,0 +1,132 @@
+<!-- View_Register.html -->
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-header">
+      <p class="eyebrow">Bienvenido a GASVEL</p>
+      <h1>Crear Cuenta</h1>
+      <p class="menu-lede">Regístrate para hacer tus pedidos y obtener beneficios.</p>
+    </div>
+    
+    <form id="registerForm" class="auth-form">
+      <div class="row">
+        <div class="col-md-6 form-group">
+          <label for="regName">Nombre</label>
+          <input type="text" id="regName" placeholder="Juan" required autocomplete="given-name">
+        </div>
+        <div class="col-md-6 form-group">
+          <label for="regLastName">Apellido</label>
+          <input type="text" id="regLastName" placeholder="Pérez" autocomplete="family-name">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="regEmail">Email</label>
+        <input type="email" id="regEmail" placeholder="tu@correo.com" required autocomplete="email">
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6 form-group">
+          <label for="regPhone">Teléfono</label>
+          <input type="tel" id="regPhone" placeholder="555-0000" autocomplete="tel">
+        </div>
+        <div class="col-md-6 form-group">
+          <label for="regWpp">WhatsApp</label>
+          <input type="tel" id="regWpp" placeholder="555-0000">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="regPass">Contraseña</label>
+        <input type="password" id="regPass" placeholder="Crea una contraseña segura" required autocomplete="new-password">
+      </div>
+      
+      <button type="submit" class="btn-auth-primary w-100">Registrarme</button>
+      
+      <p class="auth-alt">¿Ya tienes cuenta? <a href="<?= scriptUrl ?>?p=login">Inicia sesión</a></p>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var form = document.getElementById('registerForm');
+    if (!form) return;
+
+    function getSwalTheme() {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      return {
+        background: isDark ? '#1e1e1e' : '#ffffff',
+        color: isDark ? '#ffffff' : '#000000',
+        confirmButtonColor: '#E2572B'
+      };
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      var payload = {
+        name: document.getElementById('regName').value.trim(),
+        lastName: document.getElementById('regLastName').value.trim(),
+        email: document.getElementById('regEmail').value.trim(),
+        phone: document.getElementById('regPhone').value.trim(),
+        whatsapp: document.getElementById('regWpp').value.trim(),
+        password: document.getElementById('regPass').value
+      };
+
+      var btn = form.querySelector('button[type="submit"]');
+      var originalText = btn.textContent;
+
+      btn.textContent = 'Registrando...';
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          btn.textContent = originalText;
+          btn.disabled = false;
+
+          var data = response;
+          if (typeof response === 'string') {
+            try {
+              data = JSON.parse(response);
+            } catch (err) {
+              console.error('Error al parsear JSON:', err);
+              data = { success: false, message: 'Respuesta del servidor no válida.' };
+            }
+          }
+
+          var swalBase = getSwalTheme();
+          var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+
+          if (data && data.success) {
+            Swal.fire(Object.assign({}, swalBase, {
+              icon: 'success',
+              title: '¡Registro exitoso!',
+              text: data.message || 'Ahora puedes iniciar sesión.',
+              timer: 1800,
+              showConfirmButton: false
+            })).then(function() {
+              window.top.location.href = data.url || (baseUrl + '?p=login');
+            });
+
+          } else {
+            Swal.fire(Object.assign({}, swalBase, {
+              icon: 'error',
+              title: 'Error de registro',
+              text: (data && data.message) || 'No se pudo completar el registro.'
+            }));
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.textContent = originalText;
+          btn.disabled = false;
+
+          Swal.fire(Object.assign({}, getSwalTheme(), {
+            icon: 'error',
+            title: 'Error de conexión',
+            text: (err && err.message) || 'No se pudo conectar con el servidor.'
+          }));
+        })
+        .register(payload);
+    });
+  });
+</script>
