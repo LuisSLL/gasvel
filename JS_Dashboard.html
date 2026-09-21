@@ -1,0 +1,47 @@
+<!-- JS_Dashboard.html -->
+<script>
+  // ==========================================
+  // TEMA Y DATATABLES
+  // ==========================================
+  document.addEventListener('DOMContentLoaded', function() {
+    const activeTheme = localStorage.getItem('gasvel_theme') || 'dark';
+    updateThemeIcon(activeTheme);
+
+    if (typeof $ !== 'undefined' && $.fn.DataTable) {
+      $('#usersTable').DataTable({
+        responsive: true,
+        pageLength: 10,
+        language: {
+          search: "_INPUT_",
+          searchPlaceholder: "Buscar usuario...",
+          lengthMenu: "Mostrar _MENU_",
+          info: "Mostrando _START_ a _END_ de _TOTAL_",
+          paginate: {
+            next: "<i class='fas fa-chevron-right'></i>",
+            previous: "<i class='fas fa-chevron-left'></i>"
+          }
+        }
+      });
+    }
+  });
+
+  // ==========================================
+  // FUNCIONES DE TEMA
+  // ==========================================
+  function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    document.body.setAttribute('data-theme', newTheme);
+    localStorage.setItem('gasvel_theme', newTheme);
+    updateThemeIcon(newTheme);
+  }
+
+  function updateThemeIcon(theme) {
+    const icon = document.getElementById('theme-icon');
+    if (icon) {
+      icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    }
+  }
+</script>
