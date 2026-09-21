@@ -1,0 +1,353 @@
+<!-- JS_Home.js -->
+<script>
+  // Variables globales del pedido
+  let currentOrder = [];
+  let currentMode = 'Local';
+  let currentCategory = 'todos';
+  let searchTerm = '';
+
+  // Elementos del DOM
+  const menuGrid = document.getElementById('menuGrid');
+  const categoryTabs = document.getElementById('categoryTabs');
+  const searchInput = document.getElementById('searchInput');
+  const orderItemsContainer = document.getElementById('orderItems');
+  const orderEmpty = document.getElementById('orderEmpty');
+  const orderNumber = document.getElementById('orderNumber');
+  const clearOrderBtn = document.getElementById('clearOrder');
+  const processPaymentBtn = document.getElementById('processPayment');
+  
+  // Elementos del resumen
+  const sumSubtotal = document.getElementById('sumSubtotal');
+  const sumTax = document.getElementById('sumTax');
+  const sumTotal = document.getElementById('sumTotal');
+
+  // ==========================================
+  // ✅ VERIFICAR SI ESTAMOS EN EL HOME (PARA NO ROMPER)
+  // ==========================================
+  if (!menuGrid || !categoryTabs || !searchInput) return; // Detener si no es el Home
+
+  // ==========================================
+  // 1. FILTRADO Y BÚSQUEDA DEL MENÚ
+  // ==========================================
+  
+  categoryTabs.addEventListener('click', (e) => {
+    if (e.target.classList.contains('cat-tab')) {
+      document.querySelectorAll('.cat-tab').forEach(tab => tab.classList.remove('active'));
+      e.target.classList.add('active');
+      currentCategory = e.target.getAttribute('data-cat');
+      renderMenu();
+    }
+  });
+
+  searchInput.addEventListener('input', (e) => {
+    searchTerm = e.target.value.toLowerCase();
+    renderMenu();
+  });
+
+  function renderMenu() {
+    const cards = document.querySelectorAll('.menu-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      const name = card.querySelector('.menu-card-name').textContent.toLowerCase();
+      const desc = card.querySelector('.menu-card-desc').textContent.toLowerCase();
+      let matchesCategory = true;
+      if (currentCategory !== 'todos') {
+        matchesCategory = true; 
+      }
+      const matchesSearch = name.includes(searchTerm) || desc.includes(searchTerm);
+
+      if (matchesCategory && matchesSearch) {
+        card.style.display = 'flex';
+        visibleCount++;
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    if (visibleCount === 0) {
+      if (!document.querySelector('.no-results')) {
+        const noRes = document.createElement('div');
+        noRes.className = 'no-results';
+        noRes.textContent = 'No se encontraron platillos.';
+        menuGrid.appendChild(noRes);
+      }
+    } else {
+      const noRes = document.querySelector('.no-results');
+      if (noRes) noRes.remove();
+    }
+  }
+
+  // ==========================================
+  // 2. AGREGAR PLATILLOS AL PEDIDO
+  // ==========================================
+  
+  menuGrid.addEventListener('click', (e) => {
+    if (e.target.classList.contains('menu-card-add') || e.target.parentElement.classList.contains('menu-card-add')) {
+      const card = e.target.closest('.menu-card');
+      const name = card.querySelector('.menu-card-name').textContent;
+      const price = parseFloat(card.querySelector('.menu-card-price').textContent.replace('$', ''));
+      addToOrder(name, price);
+    }
+  });
+
+  function addToOrder(name, price) {
+    const existingItem = currentOrder.find(item => item.name === name);
+    if (existingItem) {
+      existingItem.qty++;
+    } else {
+      currentOrder.push({ name: name, price: price, qty: 1, note: '' });
+    }
+    renderOrder();
+  }
+
+  // ==========================================
+  // 3. RENDERIZAR EL PEDIDO EN EL PANEL DERECHO
+  // ==========================================
+  
+  function renderOrder() {
+    orderItemsContainer.innerHTML = '';
+    if (currentOrder.length > 0) {
+      orderEmpty.style.display = 'none';
+    } else {
+      orderEmpty.style.display = 'flex';
+    }
+
+    currentOrder.forEach((item, index) => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'order-item';
+      itemDiv.innerHTML = `
+        <div class="oi-main">
+          <div>
+            <p class="oi-name">${item.name}</p>
+            <p class="oi-price">${formatCurrency(item.price)}</p>
+            <p class="oi-note ${item.note ? 'filled' : ''}">${item.note ? 'Nota: ' + item.note : ''}</p>
+          </div>
+          <button class="oi-remove" data-index="${index}" title="Eliminar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="oi-controls">
+          <div class="oi-stepper">
+            <button data-action="decrease" data-index="${index}">−</button>
+            <span class="oi-qty">${item.qty}</span>
+            <button data-action="increase" data-index="${index}">+</button>
+          </div>
+          <button class="oi-note-btn" data-action="note" data-index="${index}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            Nota
+          </button>
+        </div>
+      `;
+      orderItemsContainer.appendChild(itemDiv);
+    });
+
+    updateSummary();
+  }
+
+  orderItemsContainer.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const index = parseInt(btn.getAttribute('data-index'));
+    const action = btn.getAttribute('data-action');
+
+    if (action === 'increase') {
+      currentOrder[index].qty++;
+    } else if (action === 'decrease') {
+      currentOrder[index].qty--;
+      if (currentOrder[index].qty <= 0) {
+        currentOrder.splice(index, 1);
+      }
+    } else if (action === 'remove') {
+      currentOrder.splice(index, 1);
+    } else if (action === 'note') {
+      Swal.fire({
+        title: 'Nota para cocina',
+        input: 'textarea',
+        inputPlaceholder: 'Ej: Sin cebolla, extra queso...',
+        inputValue: currentOrder[index].note,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+          popup: 'pakecho-popup',
+          title: 'pakecho-title',
+          input: 'pakecho-input',
+          confirmButton: 'pakecho-confirm',
+          cancelButton: 'pakecho-cancel'
+        }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          currentOrder[index].note = result.value || '';
+          renderOrder();
+        }
+      });
+      return;
+    }
+    renderOrder();
+  });
+
+  // ==========================================
+  // 4. TOTALES Y FORMATO
+  // ==========================================
+  
+  function updateSummary() {
+    let subtotal = 0;
+    currentOrder.forEach(item => {
+      subtotal += (item.price * item.qty);
+    });
+
+    const tax = subtotal * 0.10;
+    const total = subtotal + tax;
+
+    sumSubtotal.textContent = formatCurrency(subtotal);
+    sumTax.textContent = formatCurrency(tax);
+    sumTotal.textContent = formatCurrency(total);
+  }
+
+  function formatCurrency(amount) {
+    return '$ ' + amount.toFixed(2);
+  }
+
+  // ==========================================
+  // 5. BOTONES DE ACCIÓN
+  // ==========================================
+
+  clearOrderBtn.addEventListener('click', () => {
+    if (currentOrder.length === 0) return;
+    
+    Swal.fire({
+      title: '¿Vaciar pedido?',
+      text: 'Se eliminarán todos los platillos.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      cancelButtonColor: '#2C2436',
+      confirmButtonText: 'Sí, vaciar',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        currentOrder = [];
+        renderOrder();
+      }
+    });
+  });
+
+  processPaymentBtn.addEventListener('click', () => {
+    if (currentOrder.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Pedido vacío',
+        text: 'Agrega al menos un platillo.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Procesar pedido',
+      text: `Total a pagar: ${formatCurrency(parseFloat(sumTotal.textContent.replace('$', '')))}`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#6B8F5E',
+      cancelButtonColor: '#2C2436',
+      confirmButtonText: 'Confirmar pago',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        console.log('Pedido enviado:', currentOrder);
+        
+        Swal.fire({
+          icon: 'success',
+          title: '¡Pedido realizado!',
+          text: 'Se ha registrado correctamente.',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+        currentOrder = [];
+        renderOrder();
+      }
+    });
+  });
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.getAttribute('data-mode');
+    });
+  });
+
+  // ==========================================
+  // 6. LÓGICA DEL HEADER (LOGIN / REGISTRO / LOGOUT)
+  // ==========================================
+  const authButtons = document.getElementById('authButtons');
+  const userButtons = document.getElementById('userButtons');
+  const btnLogout = document.getElementById('btnLogout');
+
+  // Función para simular que el usuario inició sesión
+  function showLoggedInUI(userName) {
+    authButtons.style.display = 'none';
+    userButtons.style.display = 'flex';
+    document.getElementById('userName').textContent = userName;
+  }
+
+  // Función para simular cerrar sesión
+  function showLoggedOutUI() {
+    authButtons.style.display = 'flex';
+    userButtons.style.display = 'none';
+  }
+
+  // Si existe el botón de logout, redirigir a la ruta de logout
+  if (btnLogout) {
+    btnLogout.addEventListener('click', function(e) {
+      e.preventDefault();
+      // Usar la función global de redirección
+      window.redirect('logout');
+    });
+  }
+
+  // Estado inicial (Ajústalo según tu lógica)
+  showLoggedOutUI(); 
+
+  // ==========================================
+  // 7. DRAG TO SCROLL (Desplazamiento con mouse)
+  // ==========================================
+  function enableDragToScroll(element) {
+    if (!element) return;
+
+    var isDown = false;
+    var startX;
+    var scrollLeft;
+
+    element.addEventListener('mousedown', (e) => {
+      isDown = true;
+      startX = e.pageX - element.offsetLeft;
+      scrollLeft = element.scrollLeft;
+    });
+
+    element.addEventListener('mouseleave', () => {
+      isDown = false;
+    });
+
+    element.addEventListener('mouseup', () => {
+      isDown = false;
+    });
+
+    element.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      var x = e.pageX - element.offsetLeft;
+      var walk = (x - startX) * 1.5;
+      element.scrollLeft = scrollLeft - walk;
+    });
+  }
+
+  // Aplicar la función al menú de categorías
+  document.addEventListener('DOMContentLoaded', () => {
+    const categoryTabs = document.getElementById('categoryTabs');
+    enableDragToScroll(categoryTabs);
+  });
+</script>
