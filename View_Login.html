@@ -4,10 +4,10 @@
     <div class="auth-header">
       <p class="eyebrow">Acceso al sistema</p>
       <h1>Iniciar Sesión</h1>
-      <p class="menu-lede">Ingresa tus credenciales para acceder a tu cuenta.</p>
     </div>
     
     <form id="loginForm" class="auth-form">
+      <input type="hidden" id="loginNext" value="<?= nextRoute || '' ?>">
       <div class="form-group">
         <label for="loginEmail">Email</label>
         <input type="email" id="loginEmail" placeholder="usuario@correo.com" required autocomplete="username">
@@ -19,16 +19,18 @@
       </div>
       
       <button type="submit" class="btn-auth-primary w-100">Ingresar</button>
-      
-      <p class="auth-alt">¿No tienes cuenta? <a href="<?= scriptUrl ?>?p=registro">Regístrate aquí</a></p>
     </form>
+
+    <button type="button" id="guestOrderBtn" class="btn-auth-primary w-100 btn-guest" style="margin-top: 12px; background-color: #28a745;">
+      🍔 ORDENA YA
+    </button>
+    <p class="auth-alt">¿No tienes cuenta? <a href="<?= scriptUrl ?>?p=registro">Regístrate aquí</a></p>
   </div>
 </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('loginForm');
-    if (!form) return;
 
     // Helper para obtener configuración visual según el tema
     function getSwalTheme() {
@@ -40,76 +42,122 @@
       };
     }
 
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      var email = document.getElementById('loginEmail').value.trim();
-      var pass = document.getElementById('loginPass').value;
-      var btn = form.querySelector('button[type="submit"]');
-      var originalBtnText = btn.textContent;
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        var email = document.getElementById('loginEmail').value.trim();
+        var pass = document.getElementById('loginPass').value;
+        var btn = form.querySelector('button[type="submit"]');
+        var originalBtnText = btn.textContent;
 
-      btn.textContent = 'Ingresando...';
-      btn.disabled = true;
+        btn.textContent = 'Ingresando...';
+        btn.disabled = true;
 
-      google.script.run
-        .withSuccessHandler(function(response) {
-          btn.textContent = originalBtnText;
-          btn.disabled = false;
+        google.script.run
+          .withSuccessHandler(function(response) {
+            btn.textContent = originalBtnText;
+            btn.disabled = false;
 
-          // Adaptador: Procesa tanto Objeto como JSON String
-          var data = response;
-          if (typeof response === 'string') {
-            try {
-              data = JSON.parse(response);
-            } catch (err) {
-              console.error('Error al parsear JSON:', err);
-              data = { success: false, message: 'Respuesta del servidor no válida.' };
-            }
-          }
-
-          var swalBase = getSwalTheme();
-          var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
-
-          if (data && data.success) {
-            if (data.user) {
-              localStorage.setItem('gasvel_user', JSON.stringify(data.user));
-              localStorage.setItem('gasvel_token', 'session_active_' + Date.now());
+            // Adaptador: Procesa tanto Objeto como JSON String
+            var data = response;
+            if (typeof response === 'string') {
+              try {
+                data = JSON.parse(response);
+              } catch (err) {
+                console.error('Error al parsear JSON:', err);
+                data = { success: false, message: 'Respuesta del servidor no válida.' };
+              }
             }
 
-            var redirectUrl = data.url || (baseUrl + '?p=home');
-            if (data.user && (data.user.rol_id == 1 || data.user.rol_id == 2)) {
-              redirectUrl = baseUrl + '?p=dashboard';
+            var swalBase = getSwalTheme();
+            var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+
+            if (data && data.success) {
+              if (data.user) {
+                localStorage.setItem('gasvel_user', JSON.stringify(data.user));
+                localStorage.setItem('gasvel_token', 'session_active_' + Date.now());
+              }
+
+              var redirectUrl = data.url || (baseUrl + '?p=home');
+
+              Swal.fire(Object.assign({}, swalBase, {
+                icon: 'success',
+                title: '¡Bienvenido!',
+                text: data.message || 'Sesión iniciada correctamente',
+                timer: 1200,
+                showConfirmButton: false
+              })).then(function() {
+                window.top.location.href = redirectUrl;
+              });
+
+            } else {
+              Swal.fire(Object.assign({}, swalBase, {
+                icon: 'error',
+                title: 'Error de acceso',
+                text: (data && data.message) || 'Credenciales incorrectas.'
+              }));
             }
+          })
+          .withFailureHandler(function(err) {
+            btn.textContent = originalBtnText;
+            btn.disabled = false;
 
-            Swal.fire(Object.assign({}, swalBase, {
-              icon: 'success',
-              title: '¡Bienvenido!',
-              text: data.message || 'Sesión iniciada correctamente',
-              timer: 1200,
-              showConfirmButton: false
-            })).then(function() {
-              window.top.location.href = redirectUrl;
-            });
-
-          } else {
-            Swal.fire(Object.assign({}, swalBase, {
+            Swal.fire(Object.assign({}, getSwalTheme(), {
               icon: 'error',
-              title: 'Error de acceso',
-              text: (data && data.message) || 'Credenciales incorrectas.'
+              title: 'Error de conexión',
+              text: (err && err.message) || 'No se pudo conectar con el servidor.'
             }));
-          }
-        })
-        .withFailureHandler(function(err) {
-          btn.textContent = originalBtnText;
-          btn.disabled = false;
+          })
+          .login({ email: email, password: pass, next: document.getElementById('loginNext').value });
+      });
+    }
 
-          Swal.fire(Object.assign({}, getSwalTheme(), {
-            icon: 'error',
-            title: 'Error de conexión',
-            text: (err && err.message) || 'No se pudo conectar con el servidor.'
-          }));
-        })
-        .login({ email: email, password: pass });
-    });
+    // Handler para el botón de Invitado ("ORDENA YA")
+    var guestBtn = document.getElementById('guestOrderBtn');
+    if (guestBtn) {
+      guestBtn.addEventListener('click', function () {
+        var originalText = guestBtn.textContent;
+        guestBtn.textContent = 'Entrando...';
+        guestBtn.disabled = true;
+        
+        google.script.run
+          .withSuccessHandler(function (response) {
+            guestBtn.textContent = originalText;
+            guestBtn.disabled = false;
+            var data = response;
+            if (typeof response === 'string') {
+              try { 
+                data = JSON.parse(response); 
+              } catch (err) { 
+                data = { success: false, message: 'Respuesta inválida.' }; 
+              }
+            }
+            if (data && data.success) {
+              if (data.user) {
+                localStorage.setItem('gasvel_user', JSON.stringify(data.user));
+                localStorage.setItem('gasvel_token', 'guest_session_' + Date.now());
+              }
+              window.top.location.href = data.url;
+            } else {
+              Swal.fire(Object.assign({}, getSwalTheme(), {
+                icon: 'error',
+                title: 'No se pudo iniciar',
+                text: (data && data.message) || 'Intentá de nuevo.'
+              }));
+            }
+          })
+          .withFailureHandler(function (err) {
+            guestBtn.textContent = originalText;
+            guestBtn.disabled = false;
+            Swal.fire(Object.assign({}, getSwalTheme(), {
+              icon: 'error',
+              title: 'Error de conexión',
+              text: (err && err.message) || 'No se pudo conectar con el servidor.'
+            }));
+          })
+          .loginAsGuest();
+      });
+    }
   });
 </script>
