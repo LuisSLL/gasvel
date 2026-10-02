@@ -1,5 +1,6 @@
 <!-- JS_Home.js -->
 <script>
+(function() {
   // Variables globales del pedido
   let currentOrder = [];
   let currentMode = 'Local';
@@ -15,10 +16,11 @@
   const orderNumber = document.getElementById('orderNumber');
   const clearOrderBtn = document.getElementById('clearOrder');
   const processPaymentBtn = document.getElementById('processPayment');
-  
+  const mesaSelectRow = document.getElementById('mesaSelectRow');
+  const mesaSelect = document.getElementById('mesaSelect');
+
   // Elementos del resumen
   const sumSubtotal = document.getElementById('sumSubtotal');
-  const sumTax = document.getElementById('sumTax');
   const sumTotal = document.getElementById('sumTotal');
 
   // ==========================================
@@ -27,9 +29,9 @@
   if (!menuGrid || !categoryTabs || !searchInput) return; // Detener si no es el Home
 
   // ==========================================
-  // 1. FILTRADO Y BÚSQUEDA DEL MENÚ
+  // 1. FILTRADO Y BÚSQUEDA DEL MENÚ (por categoría real + texto)
   // ==========================================
-  
+
   categoryTabs.addEventListener('click', (e) => {
     if (e.target.classList.contains('cat-tab')) {
       document.querySelectorAll('.cat-tab').forEach(tab => tab.classList.remove('active'));
@@ -51,10 +53,9 @@
     cards.forEach(card => {
       const name = card.querySelector('.menu-card-name').textContent.toLowerCase();
       const desc = card.querySelector('.menu-card-desc').textContent.toLowerCase();
-      let matchesCategory = true;
-      if (currentCategory !== 'todos') {
-        matchesCategory = true; 
-      }
+      const cardCat = card.getAttribute('data-cat');
+
+      const matchesCategory = (currentCategory === 'todos') || (String(cardCat) === String(currentCategory));
       const matchesSearch = name.includes(searchTerm) || desc.includes(searchTerm);
 
       if (matchesCategory && matchesSearch) {
@@ -65,38 +66,40 @@
       }
     });
 
+    const existingNoRes = document.querySelector('.no-results');
     if (visibleCount === 0) {
-      if (!document.querySelector('.no-results')) {
+      if (!existingNoRes) {
         const noRes = document.createElement('div');
         noRes.className = 'no-results';
         noRes.textContent = 'No se encontraron platillos.';
         menuGrid.appendChild(noRes);
       }
-    } else {
-      const noRes = document.querySelector('.no-results');
-      if (noRes) noRes.remove();
+    } else if (existingNoRes) {
+      existingNoRes.remove();
     }
   }
 
   // ==========================================
-  // 2. AGREGAR PLATILLOS AL PEDIDO
+  // 2. AGREGAR PLATILLOS AL PEDIDO (usando product_id real)
   // ==========================================
-  
+
   menuGrid.addEventListener('click', (e) => {
-    if (e.target.classList.contains('menu-card-add') || e.target.parentElement.classList.contains('menu-card-add')) {
-      const card = e.target.closest('.menu-card');
-      const name = card.querySelector('.menu-card-name').textContent;
-      const price = parseFloat(card.querySelector('.menu-card-price').textContent.replace('$', ''));
-      addToOrder(name, price);
-    }
+    const addBtn = e.target.closest('.menu-card-add');
+    if (!addBtn) return;
+
+    const card = e.target.closest('.menu-card');
+    const productId = card.getAttribute('data-product-id');
+    const name = card.querySelector('.menu-card-name').textContent.trim();
+    const price = parseFloat(card.querySelector('.menu-card-price').textContent.replace('$', ''));
+    addToOrder(productId, name, price);
   });
 
-  function addToOrder(name, price) {
-    const existingItem = currentOrder.find(item => item.name === name);
+  function addToOrder(productId, name, price) {
+    const existingItem = currentOrder.find(item => item.productId === productId);
     if (existingItem) {
       existingItem.qty++;
     } else {
-      currentOrder.push({ name: name, price: price, qty: 1, note: '' });
+      currentOrder.push({ productId: productId, name: name, price: price, qty: 1, note: '' });
     }
     renderOrder();
   }
@@ -104,7 +107,7 @@
   // ==========================================
   // 3. RENDERIZAR EL PEDIDO EN EL PANEL DERECHO
   // ==========================================
-  
+
   function renderOrder() {
     orderItemsContainer.innerHTML = '';
     if (currentOrder.length > 0) {
@@ -112,6 +115,7 @@
     } else {
       orderEmpty.style.display = 'flex';
     }
+    orderItemsContainer.appendChild(orderEmpty);
 
     currentOrder.forEach((item, index) => {
       const itemDiv = document.createElement('div');
@@ -120,10 +124,10 @@
         <div class="oi-main">
           <div>
             <p class="oi-name">${item.name}</p>
-            <p class="oi-price">${formatCurrency(item.price)}</p>
+            <p class="oi-price">${formatCurrencyLocal(item.price)}</p>
             <p class="oi-note ${item.note ? 'filled' : ''}">${item.note ? 'Nota: ' + item.note : ''}</p>
           </div>
-          <button class="oi-remove" data-index="${index}" title="Eliminar">
+          <button class="oi-remove" data-action="remove" data-index="${index}" title="Eliminar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
@@ -151,6 +155,7 @@
 
     const index = parseInt(btn.getAttribute('data-index'));
     const action = btn.getAttribute('data-action');
+    if (isNaN(index)) return;
 
     if (action === 'increase') {
       currentOrder[index].qty++;
@@ -169,14 +174,7 @@
         inputValue: currentOrder[index].note,
         showCancelButton: true,
         confirmButtonText: 'Guardar',
-        cancelButtonText: 'Cancelar',
-        customClass: {
-          popup: 'pakecho-popup',
-          title: 'pakecho-title',
-          input: 'pakecho-input',
-          confirmButton: 'pakecho-confirm',
-          cancelButton: 'pakecho-cancel'
-        }
+        cancelButtonText: 'Cancelar'
       }).then((result) => {
         if (result.isConfirmed) {
           currentOrder[index].note = result.value || '';
@@ -189,34 +187,51 @@
   });
 
   // ==========================================
-  // 4. TOTALES Y FORMATO
+  // 4. TOTALES Y FORMATO (sin impuesto: total = subtotal)
   // ==========================================
-  
+
   function updateSummary() {
     let subtotal = 0;
     currentOrder.forEach(item => {
       subtotal += (item.price * item.qty);
     });
 
-    const tax = subtotal * 0.10;
-    const total = subtotal + tax;
+    const total = subtotal;
 
-    sumSubtotal.textContent = formatCurrency(subtotal);
-    sumTax.textContent = formatCurrency(tax);
-    sumTotal.textContent = formatCurrency(total);
+    sumSubtotal.textContent = formatCurrencyLocal(subtotal);
+    sumTotal.textContent = formatCurrencyLocal(total);
   }
 
-  function formatCurrency(amount) {
+  function formatCurrencyLocal(amount) {
     return '$ ' + amount.toFixed(2);
   }
 
   // ==========================================
-  // 5. BOTONES DE ACCIÓN
+  // 5. MODO DE PEDIDO (LOCAL / LLEVAR) + SELECTOR DE MESA
+  // ==========================================
+
+  function updateMesaVisibility() {
+    if (!mesaSelectRow) return;
+    mesaSelectRow.style.display = (currentMode === 'Local') ? 'block' : 'none';
+  }
+  updateMesaVisibility();
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.getAttribute('data-mode');
+      updateMesaVisibility();
+    });
+  });
+
+  // ==========================================
+  // 6. BOTONES DE ACCIÓN
   // ==========================================
 
   clearOrderBtn.addEventListener('click', () => {
     if (currentOrder.length === 0) return;
-    
+
     Swal.fire({
       title: '¿Vaciar pedido?',
       text: 'Se eliminarán todos los platillos.',
@@ -245,75 +260,182 @@
       return;
     }
 
+    if (currentMode === 'Local' && mesaSelect && !mesaSelect.value) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Selecciona una mesa',
+        text: 'Elegí la mesa donde se servirá el pedido.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    // Si es invitado, ya tiene token "guest_session_*" guardado en localStorage
+    // por loginAsGuest() desde View_Login.html, así que este chequeo pasa.
+    if (!localStorage.getItem('gasvel_token')) {
+      guardarCarritoPendiente();
+      Swal.fire({
+        icon: 'info',
+        title: 'Iniciá sesión para continuar',
+        text: 'Necesitás una cuenta para confirmar el pedido. Tu carrito queda guardado.',
+        confirmButtonText: 'Ir a iniciar sesión',
+        confirmButtonColor: '#E2572B'
+      }).then(() => {
+        window.top.location.href = SCRIPT_URL + '?p=login&next=home';
+      });
+      return;
+    }
+
     Swal.fire({
       title: 'Procesar pedido',
-      text: `Total a pagar: ${formatCurrency(parseFloat(sumTotal.textContent.replace('$', '')))}`,
+      text: `Total a pagar: ${sumTotal.textContent}`,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#6B8F5E',
       cancelButtonColor: '#2C2436',
-      confirmButtonText: 'Confirmar pago',
+      confirmButtonText: 'Confirmar pedido',
       cancelButtonText: 'Cancelar'
     }).then((result) => {
-      if (result.isConfirmed) {
-        console.log('Pedido enviado:', currentOrder);
-        
-        Swal.fire({
-          icon: 'success',
-          title: '¡Pedido realizado!',
-          text: 'Se ha registrado correctamente.',
-          timer: 2000,
-          showConfirmButton: false
-        });
+      if (!result.isConfirmed) return;
 
-        currentOrder = [];
-        renderOrder();
-      }
-    });
-  });
+      processPaymentBtn.disabled = true;
+      processPaymentBtn.textContent = 'Enviando...';
 
-  document.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentMode = btn.getAttribute('data-mode');
+      const payload = {
+        tipo: currentMode,
+        mesa_num: currentMode === 'Local' && mesaSelect ? mesaSelect.value : '',
+        cliente_nombre: '',
+        cliente_wpp: '',
+        metodo_pago: '',
+        observaciones: '',
+        items: JSON.stringify(currentOrder.map(item => ({
+          product_id: item.productId,
+          cantidad: item.qty,
+          notas: item.note
+        })))
+      };
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          processPaymentBtn.disabled = false;
+          processPaymentBtn.innerHTML = 'Procesar pedido <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+          if (response && response.success) {
+            Swal.fire({
+              icon: 'success',
+              title: '¡Pedido #' + response.numero_pedido + ' realizado!',
+              text: 'Se ha registrado correctamente.',
+              timer: 2500,
+              showConfirmButton: false
+            });
+
+            // El ticket de cocina solo se genera una vez que el pedido
+            // quedó confirmado y guardado (nunca antes).
+            // En modo invitado NO lo abrimos: el invitado sale enseguida
+            // y no queremos dejar pestañas huérfanas.
+            if (response.pedido_id && !window.GASVEL_IS_GUEST) {
+              abrirTicketCocina(response.pedido_id);
+            }
+
+            currentOrder = [];
+            renderOrder();
+
+            // 👇 Si es invitado (botón ORDENA YA), cierra la sesión
+            // automáticamente apenas termina de pedir, sin esperar los 50s
+            // de inactividad. Le damos 1.5s para que vea el check verde.
+            if (window.GASVEL_IS_GUEST && typeof window.finishGuestOrderAndExit === 'function') {
+              setTimeout(function() {
+                window.finishGuestOrderAndExit();
+              }, 1500);
+            }
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: (response && response.message) || 'No se pudo procesar el pedido.'
+            });
+          }
+        })
+        .withFailureHandler(function(err) {
+          processPaymentBtn.disabled = false;
+          processPaymentBtn.innerHTML = 'Procesar pedido <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .crearPedidoCliente(payload);
     });
   });
 
   // ==========================================
-  // 6. LÓGICA DEL HEADER (LOGIN / REGISTRO / LOGOUT)
+  // 7. LOGOUT (usa logoutUser() global de JS_Global.html;
+  //    el estado del header ya lo maneja checkSessionState() de ese archivo)
   // ==========================================
-  const authButtons = document.getElementById('authButtons');
-  const userButtons = document.getElementById('userButtons');
   const btnLogout = document.getElementById('btnLogout');
 
-  // Función para simular que el usuario inició sesión
-  function showLoggedInUI(userName) {
-    authButtons.style.display = 'none';
-    userButtons.style.display = 'flex';
-    document.getElementById('userName').textContent = userName;
-  }
-
-  // Función para simular cerrar sesión
-  function showLoggedOutUI() {
-    authButtons.style.display = 'flex';
-    userButtons.style.display = 'none';
-  }
-
-  // Si existe el botón de logout, redirigir a la ruta de logout
   if (btnLogout) {
     btnLogout.addEventListener('click', function(e) {
       e.preventDefault();
-      // Usar la función global de redirección
-      window.redirect('logout');
+      if (typeof logoutUser === 'function') logoutUser();
     });
   }
 
-  // Estado inicial (Ajústalo según tu lógica)
-  showLoggedOutUI(); 
+  // ==========================================
+  // 6b. TICKET DE COCINA (se genera SOLO al confirmar el pedido)
+  // ==========================================
+  function abrirTicketCocina(pedidoId) {
+    const ticketUrl = SCRIPT_URL + '?p=pedidos/ticket&pedido_id=' + encodeURIComponent(pedidoId);
+    // Se abre en una pestaña nueva (fuera del iframe de Apps Script) para
+    // poder usar window.print() con la impresora configurada en la PC.
+    window.open(ticketUrl, '_blank');
+  }
 
   // ==========================================
-  // 7. DRAG TO SCROLL (Desplazamiento con mouse)
+  // 7b. CARRITO PENDIENTE (persiste al pedir login para procesar el pedido)
+  // ==========================================
+  function guardarCarritoPendiente() {
+    try {
+      sessionStorage.setItem('gasvel_pending_order', JSON.stringify({
+        items: currentOrder,
+        mode: currentMode,
+        mesa: mesaSelect ? mesaSelect.value : ''
+      }));
+    } catch (e) {
+      console.error('No se pudo guardar el carrito pendiente:', e);
+    }
+  }
+
+  function restaurarCarritoPendiente() {
+    var raw;
+    try {
+      raw = sessionStorage.getItem('gasvel_pending_order');
+    } catch (e) {
+      return;
+    }
+    if (!raw) return;
+
+    try {
+      var saved = JSON.parse(raw);
+      currentOrder = saved.items || [];
+
+      if (saved.mode) {
+        currentMode = saved.mode;
+        document.querySelectorAll('.mode-btn').forEach(function(b) {
+          b.classList.toggle('active', b.getAttribute('data-mode') === currentMode);
+        });
+        updateMesaVisibility();
+      }
+
+      if (saved.mesa && mesaSelect) {
+        mesaSelect.value = saved.mesa;
+      }
+    } catch (e) {
+      console.error('No se pudo restaurar el carrito pendiente:', e);
+    } finally {
+      sessionStorage.removeItem('gasvel_pending_order');
+    }
+  }
+
+  // ==========================================
+  // 8. DRAG TO SCROLL (Desplazamiento con mouse)
   // ==========================================
   function enableDragToScroll(element) {
     if (!element) return;
@@ -328,13 +450,8 @@
       scrollLeft = element.scrollLeft;
     });
 
-    element.addEventListener('mouseleave', () => {
-      isDown = false;
-    });
-
-    element.addEventListener('mouseup', () => {
-      isDown = false;
-    });
+    element.addEventListener('mouseleave', () => { isDown = false; });
+    element.addEventListener('mouseup', () => { isDown = false; });
 
     element.addEventListener('mousemove', (e) => {
       if (!isDown) return;
@@ -345,9 +462,11 @@
     });
   }
 
-  // Aplicar la función al menú de categorías
-  document.addEventListener('DOMContentLoaded', () => {
-    const categoryTabs = document.getElementById('categoryTabs');
-    enableDragToScroll(categoryTabs);
-  });
+  enableDragToScroll(categoryTabs);
+
+  // Estado inicial: restaura el carrito si veníamos de pedir login, y renderiza
+  restaurarCarritoPendiente();
+  renderOrder();
+})();
 </script>
+
