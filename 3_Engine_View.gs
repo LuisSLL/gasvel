@@ -24,4 +24,20 @@ class View {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1');
   }
+
+  /**
+   * Renderiza una vista SIN layout (sin sidebar/topbar del dashboard).
+   * Se usa para páginas standalone pensadas para imprimirse, como el
+   * ticket de cocina.
+   */
+  static renderStandalone(viewName, data = {}) {
+    const view = HtmlService.createTemplateFromFile('View_' + viewName);
+    Object.assign(view, data);
+    view.scriptUrl = ScriptApp.getService().getUrl();
+
+    return view.evaluate()
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
 }
+
