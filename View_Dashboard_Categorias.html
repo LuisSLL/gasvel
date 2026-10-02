@@ -108,8 +108,9 @@
 </div>
 
 <script>
+  var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
   window.openEditCategoriaModal = function(catId) {
-    var categorias = <?= json_encode(Base_Model.all(CONFIG.DB.CATEGORIAS)) ?>;
+    var categorias = <?!= json_encode(Base_Model.all(CONFIG.DB.CATEGORIAS)) ?>;
     var cat = categorias.find(function(c) {
       return String(c.cat_id) === String(catId);
     });
@@ -135,7 +136,7 @@
         if (data.success) {
           $('#modalCrearCategoria').modal('hide');
           Swal.fire({ icon: 'success', title: '¡Categoría creada!', timer: 2000 });
-          window.top.location.href = '?p=dashboard/categorias';
+          window.top.location.href = baseUrl + '?p=dashboard/categorias';
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
@@ -155,7 +156,7 @@
         if (data.success) {
           $('#modalEditarCategoria').modal('hide');
           Swal.fire({ icon: 'success', title: '¡Categoría actualizada!', timer: 2000 });
-          window.top.location.href = '?p=dashboard/categorias';
+          window.top.location.href = baseUrl + '?p=dashboard/categorias';
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
@@ -176,7 +177,7 @@
             var data = JSON.parse(response);
             if (data.success) {
               Swal.fire({ icon: 'success', title: '¡Categoría eliminada!', timer: 2000 });
-              window.top.location.href = '?p=dashboard/categorias';
+              window.top.location.href = baseUrl + '?p=dashboard/categorias';
             } else {
               Swal.fire({ icon: 'error', title: 'Error', text: data.message });
             }
@@ -186,3 +187,6 @@
     });
   };
 </script>
+
+
+
