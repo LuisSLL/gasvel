@@ -19,10 +19,27 @@ var CONFIG = {
     PEDIDO_ITEMS: 'PEDIDO_ITEMS'
   },
 
-  TAX_RATE: 0.10
+  ROLES: {
+    ADMIN: 1,
+    MOZO: 2,
+    COCINA: 3,
+    CLIENTE: 4,
+    TOTEM: 5
+  },
+
+  GUEST: {
+    USER_ID: 9999,
+    NOMBRE: 'Invitado',
+    APELLIDO: 'Tótem',
+    EMAIL: 'invitado@local',        // 👈 debe coincidir con la fila 9999 en USERS
+    ROL_ID: 5,                       // TOTEM — debe coincidir con CONFIG.ROLES.TOTEM
+    INACTIVITY_MS: 30000
+  },
+
+  ESTADOS_MESA: ['LIBRE', 'OCUPADA', 'RESERVADA'],
+
+  ESTADOS_PEDIDO: ['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO', 'CANCELADO'],
+
+  TIPOS_PEDIDO: ['Local', 'Llevar']
 
 };
-
-function getConfig() {
-  return CONFIG;
-}
