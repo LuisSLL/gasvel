@@ -7,7 +7,7 @@ var CONFIG = {
 
   APP_NAME: 'GASVEL',
 
-  SPREADSHEET_ID: "1gC0AdQoG1rsQqCC50e09JP4FKlAfOT8WpgujowKobE0",
+  SPREADSHEET_ID: "",
 
   DB: {
     USERS: 'USERS',
