@@ -1,0 +1,208 @@
+<!-- View_Dashboard_Mesas.html -->
+<div class="content-header p-0 mb-3">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <h1 class="page-title m-0">Gestión de Mesas</h1>
+    <button type="button" class="btn btn-navy" data-toggle="modal" data-target="#modalCrearMesa">
+      <i class="fas fa-plus mr-1"></i> Crear Mesa
+    </button>
+  </div>
+</div>
+
+<section class="content">
+  <div class="container-fluid">
+    <div class="card card-outline card-navy">
+      <div class="card-body">
+        <table id="mesasTable" class="table table-striped table-hover w-100">
+          <thead>
+            <tr>
+              <th>Mesa #</th>
+              <th>Capacidad</th>
+              <th>Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <? if (mesas && mesas.length > 0) { ?>
+              <? for (var i = 0; i < mesas.length; i++) { ?>
+                <? var m = mesas[i]; ?>
+                <? var badgeClass = m.estado === 'LIBRE' ? 'badge-success' : (m.estado === 'OCUPADA' ? 'badge-danger' : 'badge-warning'); ?>
+                <tr>
+                  <td>#<?= m.mesa_num ?></td>
+                  <td><?= m.capacidad ?> personas</td>
+                  <td>
+                    <select class="form-control form-control-sm d-inline-block w-auto badge-select" onchange="cambiarEstadoMesa(<?= m.mesa_num ?>, this.value)">
+                      <? for (var j = 0; j < estados.length; j++) { ?>
+                        <option value="<?= estados[j] ?>" <?= estados[j] === m.estado ? 'selected' : '' ?>><?= estados[j] ?></option>
+                      <? } ?>
+                    </select>
+                  </td>
+                  <td class="text-center">
+                    <button class="btn btn-sm btn-warning" onclick="openEditMesaModal(<?= m.mesa_num ?>)" title="Editar">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="confirmDeleteMesa(<?= m.mesa_num ?>)" title="Eliminar">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              <? } ?>
+            <? } ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODAL CREAR MESA -->
+<div class="modal fade" id="modalCrearMesa" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-plus mr-2"></i>Crear Mesa</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formCrearMesa" onsubmit="guardarMesa(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Número de mesa</label>
+            <input type="number" min="1" id="create_mesa_num" class="form-control" placeholder="Ej: 11" required>
+          </div>
+          <div class="form-group">
+            <label>Capacidad (personas)</label>
+            <input type="number" min="1" id="create_mesa_cap" class="form-control" placeholder="4" value="4">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-navy">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR MESA -->
+<div class="modal fade" id="modalEditarMesa" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Editar Mesa</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formEditarMesa" onsubmit="actualizarMesa(event)">
+        <div class="modal-body">
+          <input type="hidden" id="edit_mesa_num">
+          <div class="form-group">
+            <label>Capacidad (personas)</label>
+            <input type="number" min="1" id="edit_mesa_cap" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-navy">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+  var __mesasData = <?!= json_encode(mesas) ?>;
+
+  window.openEditMesaModal = function(mesaNum) {
+    var mesa = __mesasData.find(function(m) { return String(m.mesa_num) === String(mesaNum); });
+
+    if (mesa) {
+      document.getElementById('edit_mesa_num').value = mesa.mesa_num;
+      document.getElementById('edit_mesa_cap').value = mesa.capacidad || 4;
+      $('#modalEditarMesa').modal('show');
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Mesa no encontrada' });
+    }
+  };
+
+  window.guardarMesa = function(event) {
+    event.preventDefault();
+    var payload = {
+      mesa_num: document.getElementById('create_mesa_num').value,
+      capacidad: document.getElementById('create_mesa_cap').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          $('#modalCrearMesa').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Mesa creada!', timer: 2000 });
+          window.top.location.href = baseUrl + '?p=dashboard/mesas';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .createMesa(payload);
+  };
+
+  window.actualizarMesa = function(event) {
+    event.preventDefault();
+    var payload = {
+      mesa_num: document.getElementById('edit_mesa_num').value,
+      capacidad: document.getElementById('edit_mesa_cap').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          $('#modalEditarMesa').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Mesa actualizada!', timer: 2000 });
+          window.top.location.href = baseUrl + '?p=dashboard/mesas';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .updateMesa(payload);
+  };
+
+  window.cambiarEstadoMesa = function(mesaNum, nuevoEstado) {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          Swal.fire({ icon: 'success', title: 'Estado actualizado', timer: 1200, showConfirmButton: false });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .setEstadoMesa({ mesa_num: mesaNum, estado: nuevoEstado });
+  };
+
+  window.confirmDeleteMesa = function(mesaNum) {
+    Swal.fire({
+      title: '¿Eliminar esta mesa?',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      confirmButtonText: 'Sí, eliminar'
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            var data = JSON.parse(response);
+            if (data.success) {
+              Swal.fire({ icon: 'success', title: '¡Mesa eliminada!', timer: 2000 });
+              window.top.location.href = baseUrl + '?p=dashboard/mesas';
+            } else {
+              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+          })
+          .deleteMesa({ mesa_num: mesaNum });
+      }
+    });
+  };
+</script>
+
