@@ -1,0 +1,218 @@
+<!-- View_Dashboard_Pedidos.html -->
+<div class="content-header p-0 mb-3">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <h1 class="page-title m-0">Gestión de Pedidos</h1>
+  </div>
+</div>
+
+<section class="content">
+  <div class="container-fluid">
+    <div class="card card-outline card-navy">
+      <div class="card-body">
+        <table id="pedidosTable" class="table table-striped table-hover w-100">
+          <thead>
+            <tr>
+              <th>N° Pedido</th>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Mesa</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <? if (pedidos && pedidos.length > 0) { ?>
+              <? for (var i = 0; i < pedidos.length; i++) { ?>
+                <? var p = pedidos[i]; ?>
+                <? var cerrado = (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO'); ?>
+                <? var badgeClass = { PENDIENTE: 'badge-secondary', EN_PREPARACION: 'badge-warning', LISTO: 'badge-info', ENTREGADO: 'badge-success', CANCELADO: 'badge-danger' }[p.estado] || 'badge-secondary'; ?>
+                <tr>
+                  <td><strong><?= p.numero_pedido ?></strong></td>
+                  <td><?= formatDate(p.fecha) ?></td>
+                  <td><?= p.tipo ?></td>
+                  <td><?= p.mesa_num ? ('#' + p.mesa_num) : '-' ?></td>
+                  <td><?= p.items ? p.items.length : 0 ?></td>
+                  <td><?= formatCurrency(p.total) ?></td>
+                  <td>
+                    <? if (!cerrado) { ?>
+                      <select class="form-control form-control-sm d-inline-block w-auto" onchange="cambiarEstadoPedido(<?= p.pedido_id ?>, this.value)">
+                        <? for (var j = 0; j < estados.length; j++) { ?>
+                          <option value="<?= estados[j] ?>" <?= estados[j] === p.estado ? 'selected' : '' ?>><?= estados[j] ?></option>
+                        <? } ?>
+                      </select>
+                    <? } else { ?>
+                      <span class="badge <?= badgeClass ?>"><?= p.estado ?></span>
+                    <? } ?>
+                  </td>
+                  <td class="text-center">
+                    <button class="btn btn-sm btn-info" onclick="verDetallePedido(<?= p.pedido_id ?>)" title="Ver detalle">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="confirmDeletePedido(<?= p.pedido_id ?>)" title="Eliminar">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              <? } ?>
+            <? } ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODAL DETALLE DE PEDIDO -->
+<div class="modal fade" id="modalDetallePedido" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-receipt mr-2"></i>Detalle del Pedido <span id="det_numero"></span></h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="row mb-3">
+          <div class="col-md-4"><strong>Tipo:</strong> <span id="det_tipo"></span></div>
+          <div class="col-md-4"><strong>Mesa:</strong> <span id="det_mesa"></span></div>
+          <div class="col-md-4"><strong>Estado:</strong> <span id="det_estado"></span></div>
+        </div>
+        <div class="row mb-3">
+          <div class="col-md-6"><strong>Cliente:</strong> <span id="det_cliente"></span></div>
+          <div class="col-md-6"><strong>WhatsApp:</strong> <span id="det_wpp"></span></div>
+        </div>
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Cant.</th>
+              <th>P. Unit.</th>
+              <th>Subtotal</th>
+              <th>Notas</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="det_items_body"></tbody>
+        </table>
+        <div class="text-right">
+          <strong>Total: <span id="det_total"></span></strong>
+        </div>
+        <hr>
+        <p id="det_observaciones" class="text-muted"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+  window.verDetallePedido = function(pedidoId) {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (!data.success || !data.pedido) {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'No se pudo cargar el pedido' });
+          return;
+        }
+
+        var p = data.pedido;
+        document.getElementById('det_numero').textContent = '#' + p.numero_pedido;
+        document.getElementById('det_tipo').textContent = p.tipo;
+        document.getElementById('det_mesa').textContent = p.mesa_num ? ('Mesa #' + p.mesa_num) : 'N/A';
+        document.getElementById('det_estado').textContent = p.estado;
+        document.getElementById('det_cliente').textContent = p.cliente_nombre || 'N/A';
+        document.getElementById('det_wpp').textContent = p.cliente_wpp || 'N/A';
+        document.getElementById('det_total').textContent = formatCurrencyJS(p.total);
+        document.getElementById('det_observaciones').textContent = p.observaciones ? ('Observaciones: ' + p.observaciones) : '';
+
+        var cerrado = (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO');
+        var body = document.getElementById('det_items_body');
+        body.innerHTML = '';
+
+        (p.items || []).forEach(function(item) {
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + item.nombre_producto + '</td>' +
+            '<td>' + item.cantidad + '</td>' +
+            '<td>' + formatCurrencyJS(item.precio_unitario) + '</td>' +
+            '<td>' + formatCurrencyJS(item.subtotal) + '</td>' +
+            '<td>' + (item.notas || '') + '</td>' +
+            '<td>' + (cerrado ? '' :
+              '<button class="btn btn-xs btn-danger" onclick="quitarItemPedido(' + item.item_id + ', ' + p.pedido_id + ')"><i class="fas fa-times"></i></button>'
+            ) + '</td>';
+          body.appendChild(tr);
+        });
+
+        $('#modalDetallePedido').modal('show');
+      })
+      .withFailureHandler(function(err) {
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .getPedidoById({ pedido_id: pedidoId });
+  };
+
+  window.quitarItemPedido = function(itemId, pedidoId) {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          verDetallePedido(pedidoId);
+          Swal.fire({ icon: 'success', title: data.message, timer: 1200, showConfirmButton: false });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .removePedidoItem({ item_id: itemId });
+  };
+
+  window.cambiarEstadoPedido = function(pedidoId, nuevoEstado) {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          Swal.fire({ icon: 'success', title: data.message, timer: 1500, showConfirmButton: false });
+          window.top.location.href = baseUrl + '?p=dashboard/pedidos';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .updatePedidoEstado({ pedido_id: pedidoId, estado: nuevoEstado });
+  };
+
+  window.confirmDeletePedido = function(pedidoId) {
+    Swal.fire({
+      title: '¿Eliminar este pedido?',
+      text: 'Se eliminarán también todos sus productos asociados.',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      confirmButtonText: 'Sí, eliminar'
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            var data = JSON.parse(response);
+            if (data.success) {
+              Swal.fire({ icon: 'success', title: '¡Pedido eliminado!', timer: 2000 });
+              window.top.location.href = baseUrl + '?p=dashboard/pedidos';
+            } else {
+              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+          })
+          .deletePedido({ pedido_id: pedidoId });
+      }
+    });
+  };
+
+  function formatCurrencyJS(amount) {
+    if (amount === undefined || amount === null) return '$ 0.00';
+    return '$ ' + parseFloat(amount).toFixed(2);
+  }
+</script>
+
+
