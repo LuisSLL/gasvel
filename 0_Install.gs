@@ -1,277 +1,172 @@
 /**
- * 0_Install.gs
- * Script de instalación del sistema GASVEL Restaurante
+ * 1_Base_Controller.gs
+ * Controlador base del Framework GASVEL
  */
 
-function install() {
-  try {
-    Logger.log('🚀 Iniciando instalación GASVEL Restaurante...');
-    
-    var ss = Base_Model.getSpreadsheet();
-    Logger.log('📊 Spreadsheet ID: ' + ss.getId());
-    
-    // ============================================
-    // 1. CREAR TABLAS
-    // ============================================
-    
-    Logger.log('📋 Creando tablas...');
-    
-    // ROLES
-    Base_Model.createTable(CONFIG.DB.ROLES, [
-      'rol_id', 'nombre', 'descripcion'
-    ]);
-    
-    // USERS
-    Base_Model.createTable(CONFIG.DB.USERS, [
-      'user_id', 'nombre', 'apellido', 'email', 'telefono', 'wpp', 
-      'rol_id', 'pass_hash', 'activo', 'fecha_registro'
-    ]);
-    
-    // CATEGORIAS
-    Base_Model.createTable(CONFIG.DB.CATEGORIAS, [
-      'cat_id', 'nombre', 'descripcion', 'activo'
-    ]);
-    
-    // PRODUCTOS
-    Base_Model.createTable(CONFIG.DB.PRODUCTOS, [
-      'product_id', 'nombre', 'descripcion', 'precio', 'cat_id', 
-      'imagen_url', 'activo', 'tiempo_preparacion', 'stock_control', 'stock_actual'
-    ]);
-    
-    // MESAS
-    Base_Model.createTable(CONFIG.DB.MESAS, [
-      'mesa_num', 'capacidad', 'estado', 'qr_url', 'activo'
-    ]);
-    
-    // PEDIDOS
-    Base_Model.createTable(CONFIG.DB.PEDIDOS, [
-      'pedido_id', 'numero_pedido', 'fecha', 'tipo', 'mesa_num', 
-      'user_id', 'cliente_nombre', 'cliente_wpp', 'estado', 'total', 
-      'metodo_pago', 'observaciones', 'creado_por_user_id'
-    ]);
-    
-    // PEDIDO_ITEMS
-    Base_Model.createTable(CONFIG.DB.PEDIDO_ITEMS, [
-      'item_id', 'pedido_id', 'product_id', 'nombre_producto', 
-      'cantidad', 'precio_unitario', 'subtotal', 'notas'
-    ]);
-    
-    Logger.log('✅ Tablas creadas correctamente');
-    
-    // ============================================
-    // 2. DATOS INICIALES - ROLES
-    // ============================================
-    
-    Logger.log('📋 Insertando roles...');
-    
-    var roles = Base_Model.all(CONFIG.DB.ROLES);
-    if (roles.length === 0) {
-      Base_Model.create(CONFIG.DB.ROLES, { 
-        rol_id: 1, 
-        nombre: 'ADMIN', 
-        descripcion: 'Administrador del sistema' 
-      });
-      Base_Model.create(CONFIG.DB.ROLES, { 
-        rol_id: 2, 
-        nombre: 'CAJA', 
-        descripcion: 'Cajero / Facturación' 
-      });
-      Base_Model.create(CONFIG.DB.ROLES, { 
-        rol_id: 3, 
-        nombre: 'COCINA', 
-        descripcion: 'Cocinero / Preparación' 
-      });
-      Base_Model.create(CONFIG.DB.ROLES, { 
-        rol_id: 4, 
-        nombre: 'CLIENTE', 
-        descripcion: 'Cliente registrado' 
-      });
-      Logger.log('✅ Roles insertados');
-    } else {
-      Logger.log('ℹ️ Roles ya existen');
+class Base_Controller {
+
+  /**
+   * Renderizado con Layout
+   *
+   * @param {string} viewName
+   * @param {Object} data
+   * @param {string} layout
+   */
+  view(viewName, data = {}, layout = 'Layout_Main') {
+    return View.render(viewName, data, layout);
+  }
+
+  /**
+   * Renderizado SIN layout (páginas standalone, ej: ticket de cocina
+   * pensado para imprimirse desde una pestaña propia).
+   */
+  viewStandalone(viewName, data = {}) {
+    return View.renderStandalone(viewName, data);
+  }
+
+
+  /**
+   * Redirección HTTP simple vía meta-refresh / JS.
+   * Se usa en controladores cuando no hay sesión o el rol no tiene permiso.
+   *
+   * @param {string} routeName - nombre de ruta (ej: 'login', 'dashboard')
+   */
+  redirect(routeName) {
+    var url = WebApp.url(routeName);
+    var html = '<!DOCTYPE html><html><head><base target="_top">' +
+      '<meta http-equiv="refresh" content="0; url=' + url + '">' +
+      '<script>window.top.location.href = ' + JSON.stringify(url) + ';</script>' +
+      '</head><body>Redireccionando...</body></html>';
+    return HtmlService.createHtmlOutput(html)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+
+  /**
+   * Genera una respuesta JSON estándar
+   *
+   * @param {boolean} success
+   * @param {string} message
+   * @param {Object|string} extra
+   */
+  /**
+   * Devuelve el usuario de la sesión activa (o null si no hay sesión).
+   */
+  _getSessionUser() {
+    var userProps = PropertiesService.getUserProperties();
+    var sessionEmail = userProps.getProperty('userEmail');
+    if (!sessionEmail) return null;
+
+    var user = Base_Model.all(CONFIG.DB.USERS).find(function(u) {
+      return u.email && u.email.toString().trim().toLowerCase() === sessionEmail.toLowerCase();
+    });
+
+    return user || null;
+  }
+
+  /**
+   * true si hay sesión activa y el usuario es ADMIN (rol_id 1)
+   */
+  _checkAdminPermission() {
+    var user = this._getSessionUser();
+    return !!user && parseInt(user.rol_id) === CONFIG.ROLES.ADMIN;
+  }
+
+  /**
+   * true si hay sesión activa y el rol del usuario está entre los permitidos.
+   * @param {number[]} allowedRoleIds
+   */
+  _checkRolePermission(allowedRoleIds) {
+    var user = this._getSessionUser();
+    if (!user) return false;
+    return allowedRoleIds.indexOf(parseInt(user.rol_id)) !== -1;
+  }
+
+  /**
+   * Datos de sesión listos para el header/sidebar del dashboard.
+   * Centraliza esto para no repetir stubs hardcodeados ("Admin", "A") en
+   * cada controlador de módulo.
+   */
+  _getDashboardUserData() {
+    var user = this._getSessionUser();
+
+    if (!user) {
+      return { userName: 'Invitado', userInitial: 'I', userRole: 'Invitado', userRoleId: null };
     }
-    
-    // ============================================
-    // 3. DATOS INICIALES - USUARIO ADMIN
-    // ============================================
-    
-    Logger.log('📋 Creando usuario admin...');
-    
-    var users = Base_Model.all(CONFIG.DB.USERS);
-    if (users.length === 0) {
-      var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'admin123')
-        .map(function(b) {
-          return ('0' + (b & 0xFF).toString(16)).slice(-2);
-        })
-        .join('');
-      
-      Base_Model.create(CONFIG.DB.USERS, {
-        user_id: 1,
-        nombre: 'Administrador',
-        apellido: 'Sistema',
-        email: 'admin@restaurante.com',
-        telefono: '555-1234',
-        wpp: '555-1234',
-        rol_id: 1,
-        pass_hash: hash,
-        activo: true,
-        fecha_registro: new Date()
-      });
-      Logger.log('✅ Usuario admin creado');
-    } else {
-      Logger.log('ℹ️ Usuarios ya existen');
+
+    var roleNames = {};
+    roleNames[CONFIG.ROLES.ADMIN] = 'Admin';
+    roleNames[CONFIG.ROLES.MOZO] = 'Mozo';       // 👈 antes decía CAJA (no existía)
+    roleNames[CONFIG.ROLES.COCINA] = 'Cocina';
+    roleNames[CONFIG.ROLES.CLIENTE] = 'Cliente';
+    roleNames[CONFIG.ROLES.TOTEM] = 'Invitado';  // 👈 NUEVO
+
+    var roleId = parseInt(user.rol_id);
+
+    return {
+      userName: user.nombre || 'Usuario',
+      userInitial: (user.nombre || 'U').charAt(0).toUpperCase(),
+      userRole: roleNames[roleId] || 'Usuario',
+      userRoleId: roleId
+    };
+  }
+
+  /**
+   * Redirige a un usuario sin permiso a una página que SÍ pueda ver, en vez
+   * de mandarlo siempre a 'login' (lo cual, si ya tiene sesión activa, se ve
+   * exactamente como si se hubiera cerrado sesión y genera confusión).
+   * Solo va a 'login' cuando realmente no hay sesión.
+   */
+  _denyAccess() {
+    var user = this._getSessionUser();
+
+    if (!user) {
+      return this.redirect('login');
     }
-    
-    // ============================================
-    // 4. DATOS INICIALES - MESAS
-    // ============================================
-    
-    Logger.log('📋 Creando mesas...');
-    
-    var mesas = Base_Model.all(CONFIG.DB.MESAS);
-    if (mesas.length === 0) {
-      for (var i = 1; i <= 10; i++) {
-        var capacidad = i <= 4 ? 4 : (i <= 8 ? 6 : 8);
-        Base_Model.create(CONFIG.DB.MESAS, {
-          mesa_num: i,
-          capacidad: capacidad,
-          estado: 'LIBRE',
-          activo: true
-        });
-      }
-      Logger.log('✅ 10 mesas creadas');
-    } else {
-      Logger.log('ℹ️ Mesas ya existen');
+
+    var roleId = parseInt(user.rol_id);
+    var fallbackRoute = 'home';
+
+    if (roleId === CONFIG.ROLES.ADMIN) {
+      fallbackRoute = 'dashboard';
+    } else if (roleId === CONFIG.ROLES.CAJA || roleId === CONFIG.ROLES.COCINA) {
+      fallbackRoute = 'dashboard/pedidos';
     }
-    
-    // ============================================
-    // 5. DATOS INICIALES - CATEGORÍAS
-    // ============================================
-    
-    Logger.log('📋 Creando categorías...');
-    
-    var categorias = Base_Model.all(CONFIG.DB.CATEGORIAS);
-    if (categorias.length === 0) {
-      Base_Model.create(CONFIG.DB.CATEGORIAS, { 
-        cat_id: 1, 
-        nombre: 'HAMBURGUESAS', 
-        descripcion: 'Nuestras mejores hamburguesas',
-        activo: true 
-      });
-      Base_Model.create(CONFIG.DB.CATEGORIAS, { 
-        cat_id: 2, 
-        nombre: 'PIZZAS', 
-        descripcion: 'Pizzas artesanales al horno',
-        activo: true 
-      });
-      Base_Model.create(CONFIG.DB.CATEGORIAS, { 
-        cat_id: 3, 
-        nombre: 'BEBIDAS', 
-        descripcion: 'Bebidas frías y calientes',
-        activo: true 
-      });
-      Base_Model.create(CONFIG.DB.CATEGORIAS, { 
-        cat_id: 4, 
-        nombre: 'POSTRES', 
-        descripcion: 'Dulces y postres caseros',
-        activo: true 
-      });
-      Logger.log('✅ Categorías insertadas');
-    } else {
-      Logger.log('ℹ️ Categorías ya existen');
+
+    return this.redirect(fallbackRoute);
+  }
+
+  jsonResponse(success, message, extra = {}) {
+
+    // Si extra es un string,
+    // lo tratamos como nombre de ruta.
+    if (typeof extra === 'string') {
+
+      const routeName = extra;
+
+      extra = {
+        url: WebApp.url(routeName),
+        redirect: !!routeName,
+        route: routeName
+      };
     }
-    
-    // ============================================
-    // 6. DATOS INICIALES - PRODUCTOS
-    // ============================================
-    
-    Logger.log('📋 Creando productos...');
-    
-    var productos = Base_Model.all(CONFIG.DB.PRODUCTOS);
-    if (productos.length === 0) {
-      var productosData = [
-        { product_id: 1, nombre: 'Hamburguesa Clásica', descripcion: 'Con queso, lechuga y tomate', precio: 12.50, cat_id: 1, activo: true },
-        { product_id: 2, nombre: 'Hamburguesa BBQ', descripcion: 'Con cebolla caramelizada y salsa BBQ', precio: 14.00, cat_id: 1, activo: true },
-        { product_id: 3, nombre: 'Hamburguesa Doble', descripcion: 'Doble carne, queso cheddar y bacon', precio: 16.00, cat_id: 1, activo: true },
-        { product_id: 4, nombre: 'Pizza Margherita', descripcion: 'Salsa de tomate, mozzarella y albahaca', precio: 18.00, cat_id: 2, activo: true },
-        { product_id: 5, nombre: 'Pizza Pepperoni', descripcion: 'Salsa de tomate, mozzarella y pepperoni', precio: 20.00, cat_id: 2, activo: true },
-        { product_id: 6, nombre: 'Pizza 4 Quesos', descripcion: 'Mozzarella, gorgonzola, parmesano y provolone', precio: 22.00, cat_id: 2, activo: true },
-        { product_id: 7, nombre: 'Coca Cola', descripcion: 'Lata 355ml', precio: 3.00, cat_id: 3, activo: true },
-        { product_id: 8, nombre: 'Agua Mineral', descripcion: 'Botella 500ml', precio: 2.50, cat_id: 3, activo: true },
-        { product_id: 9, nombre: 'Jugo Natural', descripcion: 'Naranja recién exprimido', precio: 4.00, cat_id: 3, activo: true },
-        { product_id: 10, nombre: 'Flan Casero', descripcion: 'Con dulce de leche y crema', precio: 5.00, cat_id: 4, activo: true },
-        { product_id: 11, nombre: 'Helado de Vainilla', descripcion: 'Bola de helado artesanal', precio: 4.50, cat_id: 4, activo: true },
-        { product_id: 12, nombre: 'Brownie con Helado', descripcion: 'Brownie de chocolate con helado de vainilla', precio: 6.50, cat_id: 4, activo: true }
-      ];
-      
-      for (var i = 0; i < productosData.length; i++) {
-        Base_Model.create(CONFIG.DB.PRODUCTOS, productosData[i]);
-      }
-      Logger.log('✅ ' + productosData.length + ' productos insertados');
-    } else {
-      Logger.log('ℹ️ Productos ya existen');
+
+
+    // Refrescar la URL actual
+    if (success && !extra.url && extra.refresh) {
+      extra.url = WebApp.url();
     }
-    
-    // ============================================
-    // 7. FINALIZAR
-    // ============================================
-    
-    Logger.log('🎉 ========================================');
-    Logger.log('🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO!');
-    Logger.log('🎉 ========================================');
-    Logger.log('📝 Usuario: admin@restaurante.com');
-    Logger.log('🔑 Contraseña: admin123');
-    Logger.log('👤 Rol: ADMIN');
-    Logger.log('📊 Tablas creadas: 7');
-    Logger.log('📋 Roles: 4');
-    Logger.log('🪑 Mesas: 10');
-    Logger.log('📦 Productos: 12');
-    Logger.log('📂 Categorías: 4');
-    Logger.log('🎉 ========================================');
-    
-  } catch (error) {
-    Logger.log('❌ ERROR: ' + error.message);
-    Logger.log('📋 Stack: ' + error.stack);
-    throw error;
+
+
+    return {
+      success: success,
+      message: message,
+      timestamp: new Date().getTime(),
+      ...extra
+    };
   }
 }
 
-/**
- * DESINSTALAR: Elimina todas las tablas
- */
-function uninstall() {
-  try {
-    Logger.log('🧹 Iniciando desinstalación...');
-    
-    var ss = Base_Model.getSpreadsheet();
-    var tables = [
-      CONFIG.DB.PEDIDO_ITEMS,
-      CONFIG.DB.PEDIDOS,
-      CONFIG.DB.MESAS,
-      CONFIG.DB.PRODUCTOS,
-      CONFIG.DB.CATEGORIAS,
-      CONFIG.DB.USERS,
-      CONFIG.DB.ROLES
-    ];
-    
-    for (var i = 0; i < tables.length; i++) {
-      var sheet = ss.getSheetByName(tables[i]);
-      if (sheet) {
-        ss.deleteSheet(sheet);
-        Logger.log('🗑️ Tabla ' + tables[i] + ' eliminada');
-      }
-    }
-    
-    Logger.log('🧹 ¡DESINSTALACIÓN COMPLETADA!');
-    
-  } catch (error) {
-    Logger.log('❌ Error: ' + error.message);
-  }
-}
 
-/**
- * PUNTO DE ENTRADA
- */
-function myFunction() {
-  install();
-}
+// Registro global
+globalThis.Base_Controller = Base_Controller;
