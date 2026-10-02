@@ -1,0 +1,336 @@
+<!-- View_Dashboard_Productos.html -->
+<div class="content-header p-0 mb-3">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <h1 class="page-title m-0">Gestión de Productos</h1>
+    <button type="button" class="btn btn-navy" data-toggle="modal" data-target="#modalCrearProducto">
+      <i class="fas fa-plus mr-1"></i> Crear Producto
+    </button>
+  </div>
+</div>
+
+<section class="content">
+  <div class="container-fluid">
+    <div class="card card-outline card-navy">
+      <div class="card-body">
+        <table id="productosTable" class="table table-striped table-hover w-100">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Categoría</th>
+              <th>Precio</th>
+              <th>Estado</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <? if (productos && productos.length > 0) { ?>
+              <? for (var i = 0; i < productos.length; i++) { ?>
+                <? var activo = productos[i].activo === true || productos[i].activo.toString().toUpperCase() === 'TRUE'; ?>
+                <tr>
+                  <td><?= productos[i].product_id ?></td>
+                  <td><?= productos[i].nombre ?></td>
+                  <td><?= productos[i].cat_nombre ?></td>
+                  <td><?= formatCurrency(productos[i].precio) ?></td>
+                  <td>
+                    <span class="badge <?= activo ? 'badge-success' : 'badge-secondary' ?>">
+                      <?= activo ? 'Activo' : 'Inactivo' ?>
+                    </span>
+                  </td>
+                  <td class="text-center">
+                    <button class="btn btn-sm btn-warning" onclick="openEditProductoModal(<?= productos[i].product_id ?>)" title="Editar">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm <?= activo ? 'btn-secondary' : 'btn-success' ?>" onclick="toggleProducto(<?= productos[i].product_id ?>)" title="<?= activo ? 'Desactivar' : 'Activar' ?>">
+                      <i class="fas <?= activo ? 'fa-eye-slash' : 'fa-eye' ?>"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="confirmDeleteProducto(<?= productos[i].product_id ?>)" title="Eliminar">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              <? } ?>
+            <? } ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODAL CREAR PRODUCTO -->
+<div class="modal fade" id="modalCrearProducto" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-plus mr-2"></i>Crear Producto</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formCrearProducto" onsubmit="guardarProducto(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="create_prod_nombre" class="form-control" placeholder="Ej: Hamburguesa Clásica" required>
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="create_prod_desc" class="form-control" placeholder="Descripción opcional">
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Precio</label>
+              <input type="number" step="0.01" min="0" id="create_prod_precio" class="form-control" placeholder="0.00" required>
+            </div>
+            <div class="form-group col-md-6">
+              <label>Categoría</label>
+              <select id="create_prod_cat" class="form-control" required>
+                <option value="">Seleccionar...</option>
+                <? if (categorias && categorias.length > 0) { ?>
+                  <? for (var i = 0; i < categorias.length; i++) { ?>
+                    <option value="<?= categorias[i].cat_id ?>"><?= categorias[i].nombre ?></option>
+                  <? } ?>
+                <? } ?>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Tiempo de preparación (min)</label>
+              <input type="number" min="0" id="create_prod_tiempo" class="form-control" placeholder="0">
+            </div>
+            <div class="form-group col-md-6">
+              <label>Imagen (URL)</label>
+              <input type="text" id="create_prod_imagen" class="form-control" placeholder="https://..." oninput="previewImagenUrl('create_prod_imagen', 'create_prod_imagen_preview')">
+              <div id="create_prod_imagen_preview" class="img-preview-box mt-2"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-navy">Crear</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR PRODUCTO -->
+<div class="modal fade" id="modalEditarProducto" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header" style="background: var(--accent); color: white;">
+        <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Editar Producto</h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formEditarProducto" onsubmit="actualizarProducto(event)">
+        <div class="modal-body">
+          <input type="hidden" id="edit_prod_id">
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="edit_prod_nombre" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="edit_prod_desc" class="form-control">
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Precio</label>
+              <input type="number" step="0.01" min="0" id="edit_prod_precio" class="form-control" required>
+            </div>
+            <div class="form-group col-md-6">
+              <label>Categoría</label>
+              <select id="edit_prod_cat" class="form-control" required>
+                <? if (categorias && categorias.length > 0) { ?>
+                  <? for (var i = 0; i < categorias.length; i++) { ?>
+                    <option value="<?= categorias[i].cat_id ?>"><?= categorias[i].nombre ?></option>
+                  <? } ?>
+                <? } ?>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Tiempo de preparación (min)</label>
+              <input type="number" min="0" id="edit_prod_tiempo" class="form-control">
+            </div>
+            <div class="form-group col-md-6">
+              <label>Imagen (URL)</label>
+              <input type="text" id="edit_prod_imagen" class="form-control" oninput="previewImagenUrl('edit_prod_imagen', 'edit_prod_imagen_preview')">
+              <div id="edit_prod_imagen_preview" class="img-preview-box mt-2"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-navy">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+  var __productosData = <?!= json_encode(productos) ?>;
+
+  /**
+   * Muestra una vista previa de la imagen a partir de la URL escrita/pegada
+   * en el campo, con feedback claro si la URL no carga.
+   */
+  window.previewImagenUrl = function(inputId, previewBoxId) {
+    var url = (document.getElementById(inputId).value || '').trim();
+    var box = document.getElementById(previewBoxId);
+
+    if (!url) {
+      box.innerHTML = '';
+      return;
+    }
+
+    box.innerHTML =
+      '<div class="img-preview-loading"><i class="fas fa-spinner fa-spin"></i> Cargando vista previa...</div>';
+
+    var img = new Image();
+    img.onload = function() {
+      box.innerHTML = '';
+      img.className = 'img-preview-thumb';
+      box.appendChild(img);
+    };
+    img.onerror = function() {
+      box.innerHTML =
+        '<div class="img-preview-error"><i class="fas fa-exclamation-triangle mr-1"></i>No se pudo cargar la imagen desde esa URL. Verificá el enlace.</div>';
+    };
+    img.src = url;
+  };
+
+  window.openEditProductoModal = function(productId) {
+    var prod = __productosData.find(function(p) { return String(p.product_id) === String(productId); });
+
+    if (prod) {
+      document.getElementById('edit_prod_id').value = prod.product_id;
+      document.getElementById('edit_prod_nombre').value = prod.nombre || '';
+      document.getElementById('edit_prod_desc').value = prod.descripcion || '';
+      document.getElementById('edit_prod_precio').value = prod.precio || 0;
+      document.getElementById('edit_prod_cat').value = prod.cat_id;
+      document.getElementById('edit_prod_tiempo').value = prod.tiempo_preparacion || 0;
+      document.getElementById('edit_prod_imagen').value = prod.imagen_url || '';
+      previewImagenUrl('edit_prod_imagen', 'edit_prod_imagen_preview');
+      $('#modalEditarProducto').modal('show');
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Producto no encontrado' });
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    $('#modalCrearProducto').on('hidden.bs.modal', function() {
+      document.getElementById('formCrearProducto').reset();
+      document.getElementById('create_prod_imagen_preview').innerHTML = '';
+    });
+  });
+
+  window.guardarProducto = function(event) {
+    event.preventDefault();
+    var payload = {
+      nombre: document.getElementById('create_prod_nombre').value,
+      descripcion: document.getElementById('create_prod_desc').value,
+      precio: document.getElementById('create_prod_precio').value,
+      cat_id: document.getElementById('create_prod_cat').value,
+      tiempo_preparacion: document.getElementById('create_prod_tiempo').value,
+      imagen_url: document.getElementById('create_prod_imagen').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          $('#modalCrearProducto').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Producto creado!', timer: 2000 });
+          window.top.location.href = baseUrl + '?p=dashboard/productos';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .withFailureHandler(function(err) {
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .createProducto(payload);
+  };
+
+  window.actualizarProducto = function(event) {
+    event.preventDefault();
+    var payload = {
+      product_id: document.getElementById('edit_prod_id').value,
+      nombre: document.getElementById('edit_prod_nombre').value,
+      descripcion: document.getElementById('edit_prod_desc').value,
+      precio: document.getElementById('edit_prod_precio').value,
+      cat_id: document.getElementById('edit_prod_cat').value,
+      tiempo_preparacion: document.getElementById('edit_prod_tiempo').value,
+      imagen_url: document.getElementById('edit_prod_imagen').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          $('#modalEditarProducto').modal('hide');
+          Swal.fire({ icon: 'success', title: '¡Producto actualizado!', timer: 2000 });
+          window.top.location.href = baseUrl + '?p=dashboard/productos';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .withFailureHandler(function(err) {
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .updateProducto(payload);
+  };
+
+  window.toggleProducto = function(productId) {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data = JSON.parse(response);
+        if (data.success) {
+          Swal.fire({ icon: 'success', title: data.message, timer: 1500, showConfirmButton: false });
+          window.top.location.href = baseUrl + '?p=dashboard/productos';
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .withFailureHandler(function(err) {
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .toggleProductoActivo({ product_id: productId });
+  };
+
+  window.confirmDeleteProducto = function(productId) {
+    Swal.fire({
+      title: '¿Eliminar este producto?',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      confirmButtonText: 'Sí, eliminar'
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            var data = JSON.parse(response);
+            if (data.success) {
+              Swal.fire({ icon: 'success', title: '¡Producto eliminado!', timer: 2000 });
+              window.top.location.href = baseUrl + '?p=dashboard/productos';
+            } else {
+              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+            }
+          })
+          .deleteProducto({ product_id: productId });
+      }
+    });
+  };
+</script>
+
+
+
+
+
