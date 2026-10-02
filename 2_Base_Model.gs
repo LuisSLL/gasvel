@@ -114,6 +114,27 @@ class Base_Model {
   static getNextId(sheetName) {
     return this.getLastId(sheetName) + 1;
   }
+
+  /**
+   * Crea (o re-crea) una hoja con los encabezados indicados.
+   * Usado por 0_Install.gs para inicializar el sistema desde cero.
+   * Si la hoja ya existe, no la toca (evita perder datos existentes).
+   */
+  static createTable(sheetName, headers) {
+    var ss = this.getSpreadsheet();
+    var sheet = ss.getSheetByName(sheetName);
+
+    if (sheet) {
+      // La tabla ya existe: no se sobreescribe para no perder datos.
+      return sheet;
+    }
+
+    sheet = ss.insertSheet(sheetName);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    return sheet;
+  }
 }
 
 // Registrar global
