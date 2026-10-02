@@ -41,6 +41,10 @@
     </script>
 </head>
 <body class="hold-transition sidebar-mini layout-fixed dash-body" data-theme="<?!= theme ?>">
+  <? var _uRol = (typeof userRoleId !== 'undefined') ? userRoleId : null; ?>
+  <? var _esAdmin = (_uRol === CONFIG.ROLES.ADMIN); ?>
+  <? var _esCaja = (_uRol === CONFIG.ROLES.CAJA); ?>
+  <? var _esCocina = (_uRol === CONFIG.ROLES.COCINA); ?>
 <div class="wrapper">
 
   <!-- NAVBAR -->
@@ -103,40 +107,61 @@
 
   <!-- SIDEBAR -->
 <aside class="main-sidebar elevation-0">
-  <a href="<?= scriptUrl ?>?p=dashboard" class="brand-link text-center">
+  <? var _homeDash = _esAdmin ? '?p=dashboard' : '?p=dashboard/pedidos'; ?>
+  <a href="<?= scriptUrl ?><?= _homeDash ?>" class="brand-link text-center">
     <span class="brand-text"><strong>GASVEL</strong> <small class="brand-sub">ADMIN</small></span>
   </a>
 
   <div class="sidebar mt-3">
     <nav>
       <ul class="nav nav-pills nav-sidebar flex-column custom-sidebar-nav" data-widget="treeview" role="menu">
+        <? if (_esAdmin) { ?>
         <li class="nav-item">
-          <a href="<?= scriptUrl ?>?p=dashboard" class="nav-link active">
+          <a href="<?= scriptUrl ?>?p=dashboard" class="nav-link <?= (typeof activeMenu !== 'undefined' && activeMenu === 'usuarios') ? 'active' : '' ?>">
             <i class="nav-icon fas fa-users"></i>
             <p>Usuarios</p>
           </a>
         </li>
-        
-        <!-- ✅ AGREGADO: CATEGORÍAS -->
+
         <li class="nav-item">
-          <a href="<?= scriptUrl ?>?p=dashboard/categorias" class="nav-link">
+          <a href="<?= scriptUrl ?>?p=dashboard/roles" class="nav-link <?= (typeof activeMenu !== 'undefined' && activeMenu === 'roles') ? 'active' : '' ?>">
+            <i class="nav-icon fas fa-user-shield"></i>
+            <p>Roles</p>
+          </a>
+        </li>
+
+        <li class="nav-item">
+          <a href="<?= scriptUrl ?>?p=dashboard/categorias" class="nav-link <?= (typeof activeMenu !== 'undefined' && activeMenu === 'categorias') ? 'active' : '' ?>">
             <i class="nav-icon fas fa-tags"></i>
             <p>Categorías</p>
           </a>
         </li>
 
         <li class="nav-item">
-          <a href="<?= scriptUrl ?>?p=dashboard/pedidos" class="nav-link">
+          <a href="<?= scriptUrl ?>?p=dashboard/productos" class="nav-link <?= (typeof activeMenu !== 'undefined' && activeMenu === 'productos') ? 'active' : '' ?>">
+            <i class="nav-icon fas fa-utensils"></i>
+            <p>Productos</p>
+          </a>
+        </li>
+        <? } ?>
+
+        <? if (_esAdmin || _esCaja) { ?>
+        <li class="nav-item">
+          <a href="<?= scriptUrl ?>?p=dashboard/mesas" class="nav-link <?= (typeof activeMenu !== 'undefined' && activeMenu === 'mesas') ? 'active' : '' ?>">
+            <i class="nav-icon fas fa-chair"></i>
+            <p>Mesas</p>
+          </a>
+        </li>
+        <? } ?>
+
+        <? if (_esAdmin || _esCaja || _esCocina) { ?>
+        <li class="nav-item">
+          <a href="<?= scriptUrl ?>?p=dashboard/pedidos" class="nav-link <?= (typeof activeMenu !== 'undefined' && activeMenu === 'pedidos') ? 'active' : '' ?>">
             <i class="nav-icon fas fa-shopping-bag"></i>
             <p>Pedidos</p>
           </a>
         </li>
-        <li class="nav-item">
-          <a href="<?= scriptUrl ?>?p=dashboard/menu" class="nav-link">
-            <i class="nav-icon fas fa-utensils"></i>
-            <p>Menú</p>
-          </a>
-        </li>
+        <? } ?>
       </ul>
     </nav>
   </div>
@@ -175,3 +200,5 @@
  
 </body>
 </html>
+
+
