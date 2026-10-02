@@ -4,30 +4,16 @@
  */
 class Ctrl_Categorias extends Base_Controller {
 
-  _checkAdminPermission() {
-    var userProps = PropertiesService.getUserProperties();
-    var sessionEmail = userProps.getProperty('userEmail');
-    if (!sessionEmail) return false;
-    
-    var user = Base_Model.all(CONFIG.DB.USERS).find(function(u) {
-      return u.email && u.email.toString().trim().toLowerCase() === sessionEmail.toLowerCase();
-    });
-    
-    return user && parseInt(user.rol_id) === 1;
-  }
-
   index() {
     if (!this._checkAdminPermission()) {
-      return this.redirect('login');
+      return this._denyAccess();
     }
-    
-    return this.view('Dashboard_Categorias', {
+
+    return this.view('Dashboard_Categorias', Object.assign({
       title: "Gestión de Categorías",
-      userName: "Admin",
-      userInitial: "A",
-      userRole: "Admin",
+      activeMenu: "categorias",
       categorias: Base_Model.all(CONFIG.DB.CATEGORIAS)
-    }, 'Layout_Dashboard');
+    }, this._getDashboardUserData()), 'Layout_Dashboard');
   }
 
   create(data) {
@@ -96,6 +82,14 @@ class Ctrl_Categorias extends Base_Controller {
       return JSON.stringify({ success: false, message: 'ID inválido' });
     }
 
+    var enUso = Base_Model.all(CONFIG.DB.PRODUCTOS).some(function(p) {
+      return String(p.cat_id).trim() === String(data.cat_id).trim();
+    });
+
+    if (enUso) {
+      return JSON.stringify({ success: false, message: 'No se puede eliminar: hay productos asociados a esta categoría.' });
+    }
+
     Base_Model.delete(CONFIG.DB.CATEGORIAS, data.cat_id);
     return JSON.stringify({ success: true, message: '¡Categoría eliminada!' });
   }
@@ -118,3 +112,5 @@ function deleteCategoria(data) {
   var controller = new Ctrl_Categorias();
   return controller.delete(data);
 }
+
+
