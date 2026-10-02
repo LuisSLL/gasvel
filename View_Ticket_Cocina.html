@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title><?= title ?></title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: #e9e9e9;
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .ticket {
+      background: #fff;
+      width: 320px;
+      padding: 18px 16px;
+      color: #111;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .center { text-align: center; }
+    .divider {
+      border: none;
+      border-top: 1px dashed #111;
+      margin: 10px 0;
+    }
+    .titulo {
+      font-weight: bold;
+      font-size: 15px;
+      letter-spacing: 1px;
+    }
+    .subtitulo {
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+    }
+    .item {
+      margin: 8px 0;
+    }
+    .item-cant {
+      font-weight: bold;
+    }
+    .item-nota {
+      padding-left: 14px;
+      font-style: italic;
+    }
+    .obs {
+      white-space: pre-wrap;
+    }
+    .print-bar {
+      width: 320px;
+      margin: 0 auto 12px auto;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .print-bar button {
+      font-family: inherit;
+      font-size: 13px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #2C2436;
+      color: #fff;
+      cursor: pointer;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .print-bar { display: none; }
+      .ticket { width: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <div>
+    <div class="print-bar">
+      <button onclick="window.print()">Imprimir ticket</button>
+    </div>
+
+    <div class="ticket">
+      <div class="center titulo">GASVEL RESTAURANTE</div>
+      <div class="center subtitulo">TICKET COCINA</div>
+      <hr class="divider">
+
+      <div>PEDIDO #<?= pedido.numero_pedido ?></div>
+      <div><?= formatDateTime(pedido.fecha) ?></div>
+
+      <hr class="divider">
+
+      <div class="meta-row"><span>MESA:</span><span><?= pedido.tipo === 'Local' ? (pedido.mesa_num || '-') : '-' ?></span></div>
+      <div class="meta-row"><span>TIPO:</span><span><?= pedido.tipo === 'Local' ? 'LOCAL' : 'PARA LLEVAR' ?></span></div>
+
+      <hr class="divider">
+
+      <? for (var i = 0; i < pedido.items.length; i++) { ?>
+        <? var it = pedido.items[i]; ?>
+        <div class="item">
+          <span class="item-cant"><?= it.cantidad ?> x</span> <?= it.nombre_producto.toString().toUpperCase() ?>
+          <? if (it.notas) { ?>
+            <div class="item-nota">↳ <?= it.notas ?></div>
+          <? } ?>
+        </div>
+      <? } ?>
+
+      <hr class="divider">
+
+      <? if (pedido.observaciones) { ?>
+        <div>OBSERVACIONES:</div>
+        <div class="obs"><?= pedido.observaciones ?></div>
+        <hr class="divider">
+      <? } ?>
+
+      <div class="center subtitulo">PEDIDO EN COCINA</div>
+    </div>
+  </div>
+
+  <script>
+    // Opción A: abrir el ticket e imprimir con la impresora configurada
+    // en la computadora (window.print()).
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 300);
+    });
+  </script>
+</body>
+</html>
+
