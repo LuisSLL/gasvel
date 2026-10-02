@@ -1,0 +1,44 @@
+<script>
+/**
+ * JS_GuestWatchdog.html
+ * Cierra automáticamente la sesión de "invitado" (botón ORDENA YA):
+ *   - a los 50s sin actividad, o
+ *   - apenas se confirma un pedido (ver finishGuestOrderAndExit()).
+ * No hace nada si la sesión actual NO es de invitado
+ * (window.GASVEL_IS_GUEST debe estar en 'true' desde el controlador de Home).
+ */
+(function () {
+  if (typeof window.GASVEL_IS_GUEST === 'undefined' || !window.GASVEL_IS_GUEST) return;
+
+  var INACTIVITY_MS = 50000;
+  var timer = null;
+  var yaSalio = false;
+
+  function exitGuestSession() {
+    if (yaSalio) return;
+    yaSalio = true;
+    window.top.location.href = window.GASVEL_BASE_URL + '?p=logout';
+  }
+
+  function resetTimer() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(exitGuestSession, INACTIVITY_MS);
+  }
+
+  ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(function (evt) {
+    document.addEventListener(evt, resetTimer, { passive: true });
+  });
+
+  resetTimer();
+
+  /**
+   * Llamá esta función apenas se confirma el pedido (ej: dentro del
+   * .then() de tu Swal "¡Pago procesado!"), para salir al toque sin
+   * esperar los 50s de inactividad.
+   */
+  window.finishGuestOrderAndExit = function () {
+    if (timer) clearTimeout(timer);
+    exitGuestSession();
+  };
+})();
+</script>
