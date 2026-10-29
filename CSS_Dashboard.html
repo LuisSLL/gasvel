@@ -340,3 +340,328 @@ body.dash-body {
   color: var(--text-muted) !important;
   font-size: 13px;
 }
+
+/* Vista previa de imagen (URL de producto) */
+.img-preview-box {
+  min-height: 0;
+}
+
+.img-preview-thumb {
+  width: 100%;
+  max-width: 180px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.img-preview-loading {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  padding: 6px 0;
+}
+
+.img-preview-error {
+  font-size: 12.5px;
+  color: #E2572B;
+  background: rgba(226, 87, 43, 0.08);
+  border: 1px solid rgba(226, 87, 43, 0.25);
+  border-radius: 6px;
+  padding: 6px 10px;
+  max-width: 320px;
+}
+
+/* ============================================================
+   ===== FIX: TABLAS, MODALES Y HOVER EN DARK MODE =====
+   ============================================================ */
+
+/* --- TABLAS: hover y filas --- */
+.table {
+  color: var(--text);
+  background-color: transparent;
+}
+
+.table thead th {
+  color: var(--text-muted);
+  background-color: var(--surface-2);
+  border-bottom-color: var(--border);
+  border-top-color: transparent;
+}
+
+.table td,
+.table th {
+  border-top-color: var(--border);
+}
+
+/* Hover: que NO quede texto oscuro sobre fondo oscuro */
+.table-hover tbody tr:hover {
+  color: var(--text) !important;
+  background-color: var(--surface-hover) !important;
+}
+
+/* Filas striped */
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.table-striped tbody tr:nth-of-type(odd):hover {
+  background-color: var(--surface-hover) !important;
+}
+
+/* Celdas dentro del hover: que hereden el color de texto */
+.table-hover tbody tr:hover td,
+.table-hover tbody tr:hover th,
+.table-hover tbody tr:hover strong,
+.table-hover tbody tr:hover span {
+  color: var(--text) !important;
+}
+
+/* DataTables: paginación, buscador, select de "Mostrar N" */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_processing,
+.dataTables_wrapper .dataTables_paginate {
+  color: var(--text-muted);
+}
+
+.dataTables_wrapper .dataTables_length select,
+.dataTables_wrapper .dataTables_filter input {
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.dataTables_wrapper .dataTables_filter input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem rgba(226, 87, 43, 0.25);
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+/* Paginación */
+.page-link {
+  background-color: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.page-link:hover {
+  background-color: var(--surface-hover) !important;
+  color: var(--accent) !important;
+}
+
+.page-item.active .page-link {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+.page-item.disabled .page-link {
+  background-color: var(--surface) !important;
+  color: var(--text-faint) !important;
+}
+
+/* --- MODALES --- */
+.modal-content {
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.modal-header {
+  border-bottom-color: var(--border);
+}
+
+.modal-footer {
+  border-top-color: var(--border);
+}
+
+.modal-body {
+  color: var(--text);
+}
+
+.modal-body strong,
+.modal-body label,
+.modal-body span,
+.modal-body p,
+.modal-body div {
+  color: var(--text);
+}
+
+.modal-body .text-muted {
+  color: var(--text-faint) !important;
+}
+
+/* Tabla dentro de modales */
+.modal-body .table {
+  color: var(--text);
+}
+
+.modal-body .table thead th {
+  color: var(--text-muted);
+  border-bottom-color: var(--border);
+}
+
+.modal-body .table td,
+.modal-body .table th {
+  border-top-color: var(--border);
+}
+
+.modal-body .table-sm td,
+.modal-body .table-sm th {
+  border-top-color: var(--border);
+}
+
+/* Botón close del modal */
+.modal-header .close {
+  color: #fff;
+  opacity: 0.8;
+}
+.modal-header .close:hover {
+  opacity: 1;
+}
+
+/* --- FORM CONTROLS (selects, inputs) --- */
+.form-control {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.form-control:focus {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem rgba(226, 87, 43, 0.25);
+}
+
+.form-control-sm {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Selects en modo dark: que las opciones también se vean */
+.form-control option,
+select option {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+/* Inputs placeholder */
+.form-control::placeholder {
+  color: var(--text-faint);
+  opacity: 1;
+}
+
+/* --- SELECT DE ESTADO dentro de la tabla (los chiquitos) --- */
+.badge-select,
+select.form-control-sm.d-inline-block {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* --- BADGES: que mantengan su color pero con texto legible --- */
+.badge-info {
+  background-color: #17a2b8;
+  color: #fff;
+}
+.badge-warning {
+  background-color: #ffc107;
+  color: #1a1a1a;
+}
+.badge-success {
+  background-color: #28a745;
+  color: #fff;
+}
+.badge-danger {
+  background-color: #dc3545;
+  color: #fff;
+}
+.badge-secondary {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+/* --- BOTONES: los que usan btn-navy, btn-warning, etc. --- */
+.btn-warning {
+  background-color: #ffc107;
+  color: #1a1a1a;
+  border-color: #ffc107;
+}
+.btn-warning:hover {
+  background-color: #e0a800;
+  color: #1a1a1a;
+  border-color: #e0a800;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: #fff;
+  border-color: #dc3545;
+}
+.btn-danger:hover {
+  background-color: #c82333;
+  color: #fff;
+  border-color: #c82333;
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: #fff;
+  border-color: #17a2b8;
+}
+.btn-info:hover {
+  background-color: #138496;
+  color: #fff;
+  border-color: #138496;
+}
+
+.btn-success {
+  background-color: #28a745;
+  color: #fff;
+  border-color: #28a745;
+}
+.btn-success:hover {
+  background-color: #218838;
+  color: #fff;
+  border-color: #218838;
+}
+
+.btn-secondary {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover {
+  background-color: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* --- SWEETALERT2 en dark mode --- */
+body[data-theme="dark"] .swal2-popup,
+html[data-theme="dark"] .swal2-popup {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+body[data-theme="dark"] .swal2-title,
+body[data-theme="dark"] .swal2-html-container {
+  color: var(--text);
+}
+
+body[data-theme="dark"] .swal2-input,
+body[data-theme="dark"] .swal2-textarea,
+body[data-theme="dark"] .swal2-select {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* ============================================================
+   ===== FIN FIX DARK MODE =====
+   ============================================================ */
