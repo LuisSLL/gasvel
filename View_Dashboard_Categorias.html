@@ -21,13 +21,13 @@
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="categoriasTbody">
             <? if (categorias && categorias.length > 0) { ?>
               <? for (var i = 0; i < categorias.length; i++) { ?>
-                <tr>
-                  <td><?= categorias[i].cat_id ?></td>
-                  <td><?= categorias[i].nombre ?></td>
-                  <td><?= categorias[i].descripcion || '' ?></td>
+                <tr id="cat-row-<?= categorias[i].cat_id ?>">
+                  <td class="cat-id"><?= categorias[i].cat_id ?></td>
+                  <td class="cat-nombre"><?= categorias[i].nombre ?></td>
+                  <td class="cat-desc"><?= categorias[i].descripcion || '' ?></td>
                   <td class="text-center">
                     <button class="btn btn-sm btn-warning" onclick="openEditCategoriaModal(<?= categorias[i].cat_id ?>)">
                       <i class="fas fa-edit"></i>
@@ -41,6 +41,7 @@
             <? } ?>
           </tbody>
         </table>
+        
       </div>
     </div>
   </div>
@@ -109,84 +110,293 @@
 
 <script>
   var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+
+  // ==========================================
+  // CACHÉ LOCAL (para no recargar la página)
+  // ==========================================
+  var __categoriasData = <?!= json_encode(categorias) ?>;
+
+  // ==========================================
+  // HELPERS DE RENDER EN VIVO
+  // ==========================================
+
+  function catEsc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderFilaCategoria(cat) {
+    return '' +
+      '<tr id="cat-row-' + cat.cat_id + '">' +
+        '<td class="cat-id">' + cat.cat_id + '</td>' +
+        '<td class="cat-nombre">' + catEsc(cat.nombre) + '</td>' +
+        '<td class="cat-desc">' + catEsc(cat.descripcion || '') + '</td>' +
+        '<td class="text-center">' +
+          '<button class="btn btn-sm btn-warning" onclick="openEditCategoriaModal(' + cat.cat_id + ')">' +
+            '<i class="fas fa-edit"></i>' +
+          '</button> ' +
+          '<button class="btn btn-sm btn-danger" onclick="confirmDeleteCategoria(' + cat.cat_id + ')">' +
+            '<i class="fas fa-trash"></i>' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  }
+
+  function toggleEmptyStateCategorias() {
+    var tbody = document.getElementById('categoriasTbody');
+    var empty = document.getElementById('categoriasEmpty');
+    if (!tbody || !empty) return;
+
+    var hayFilas = tbody.querySelectorAll('tr').length > 0;
+    empty.style.display = hayFilas ? 'none' : 'block';
+  }
+
+  function actualizarFilaCategoria(catId, data) {
+    var tr = document.getElementById('cat-row-' + catId);
+    if (!tr) return;
+
+    if (data.nombre !== undefined) {
+      tr.querySelector('.cat-nombre').textContent = data.nombre;
+    }
+    if (data.descripcion !== undefined) {
+      tr.querySelector('.cat-desc').textContent = data.descripcion || '';
+    }
+
+    // Actualizar caché
+    var idx = __categoriasData.findIndex(function(c) {
+      return String(c.cat_id) === String(catId);
+    });
+    if (idx !== -1) {
+      if (data.nombre !== undefined) __categoriasData[idx].nombre = data.nombre;
+      if (data.descripcion !== undefined) __categoriasData[idx].descripcion = data.descripcion;
+    }
+  }
+
+  function agregarFilaCategoria(cat) {
+    var tbody = document.getElementById('categoriasTbody');
+    if (!tbody) return;
+
+    // Insertar al final
+    tbody.insertAdjacentHTML('beforeend', renderFilaCategoria(cat));
+
+    // Actualizar caché
+    __categoriasData.push(cat);
+
+    // Reordenar por cat_id por si el backend devuelve un id no consecutivo
+    var tbody2 = document.getElementById('categoriasTbody');
+    var filas = Array.prototype.slice.call(tbody2.querySelectorAll('tr'));
+    filas.sort(function(a, b) {
+      var idA = parseInt(a.querySelector('.cat-id').textContent, 10) || 0;
+      var idB = parseInt(b.querySelector('.cat-id').textContent, 10) || 0;
+      return idA - idB;
+    });
+    filas.forEach(function(f) { tbody2.appendChild(f); });
+
+    toggleEmptyStateCategorias();
+
+    // Animación de entrada
+    var nuevaFila = document.getElementById('cat-row-' + cat.cat_id);
+    if (nuevaFila) {
+      nuevaFila.style.opacity = '0';
+      nuevaFila.style.transition = 'opacity .3s ease';
+      requestAnimationFrame(function() { nuevaFila.style.opacity = '1'; });
+    }
+  }
+
+  function eliminarFilaCategoria(catId) {
+    var tr = document.getElementById('cat-row-' + catId);
+    if (!tr) return;
+
+    tr.style.transition = 'opacity .3s ease';
+    tr.style.opacity = '0';
+    setTimeout(function() {
+      tr.remove();
+      __categoriasData = __categoriasData.filter(function(c) {
+        return String(c.cat_id) !== String(catId);
+      });
+      toggleEmptyStateCategorias();
+    }, 300);
+  }
+
+  // ==========================================
+  // ABRIR MODAL EDITAR
+  // ==========================================
   window.openEditCategoriaModal = function(catId) {
-    var categorias = <?!= json_encode(Base_Model.all(CONFIG.DB.CATEGORIAS)) ?>;
-    var cat = categorias.find(function(c) {
+    var cat = __categoriasData.find(function(c) {
       return String(c.cat_id) === String(catId);
     });
 
-    if (cat) {
-      document.getElementById('edit_cat_id').value = cat.cat_id;
-      document.getElementById('edit_cat_nombre').value = cat.nombre || '';
-      document.getElementById('edit_cat_desc').value = cat.descripcion || '';
-      $('#modalEditarCategoria').modal('show');
-    } else {
+    if (!cat) {
       Swal.fire({ icon: 'error', title: 'Error', text: 'Categoría no encontrada' });
+      return;
     }
+
+    document.getElementById('edit_cat_id').value = cat.cat_id;
+    document.getElementById('edit_cat_nombre').value = cat.nombre || '';
+    document.getElementById('edit_cat_desc').value = cat.descripcion || '';
+    $('#modalEditarCategoria').modal('show');
   };
 
+  // ==========================================
+  // CREAR (en vivo)
+  // ==========================================
   window.guardarCategoria = function(event) {
     event.preventDefault();
-    var nombre = document.getElementById('create_cat_nombre').value;
-    var descripcion = document.getElementById('create_cat_desc').value;
+
+    var btn = document.querySelector('#formCrearCategoria button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Creando...';
+
+    var payload = {
+      nombre: document.getElementById('create_cat_nombre').value,
+      descripcion: document.getElementById('create_cat_desc').value
+    };
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalCrearCategoria').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Categoría creada!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/categorias';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          if (data.categoria) {
+            agregarFilaCategoria(data.categoria);
+          }
+
+          // Reset del form
+          document.getElementById('formCrearCategoria').reset();
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Categoría creada!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
-      .createCategoria({ nombre: nombre, descripcion: descripcion });
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .createCategoria(payload);
   };
 
+  // ==========================================
+  // ACTUALIZAR (en vivo)
+  // ==========================================
   window.actualizarCategoria = function(event) {
     event.preventDefault();
+
+    var btn = document.querySelector('#formEditarCategoria button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+
     var catId = document.getElementById('edit_cat_id').value;
-    var nombre = document.getElementById('edit_cat_nombre').value;
-    var descripcion = document.getElementById('edit_cat_desc').value;
+    var payload = {
+      cat_id: catId,
+      nombre: document.getElementById('edit_cat_nombre').value,
+      descripcion: document.getElementById('edit_cat_desc').value
+    };
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalEditarCategoria').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Categoría actualizada!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/categorias';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          actualizarFilaCategoria(catId, {
+            nombre: payload.nombre,
+            descripcion: payload.descripcion
+          });
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Categoría actualizada!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
-      .updateCategoria({ cat_id: catId, nombre: nombre, descripcion: descripcion });
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .updateCategoria(payload);
   };
 
+  // ==========================================
+  // ELIMINAR (en vivo)
+  // ==========================================
   window.confirmDeleteCategoria = function(catId) {
     Swal.fire({
       title: '¿Eliminar esta categoría?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#E2572B',
-      confirmButtonText: 'Sí, eliminar'
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
     }).then(function(result) {
-      if (result.isConfirmed) {
-        google.script.run
-          .withSuccessHandler(function(response) {
-            var data = JSON.parse(response);
-            if (data.success) {
-              Swal.fire({ icon: 'success', title: '¡Categoría eliminada!', timer: 2000 });
-              window.top.location.href = baseUrl + '?p=dashboard/categorias';
-            } else {
-              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
-            }
-          })
-          .deleteCategoria({ cat_id: catId });
-      }
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            // 🔥 ELIMINACIÓN EN VIVO
+            eliminarFilaCategoria(catId);
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Categoría eliminada!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .deleteCategoria({ cat_id: catId });
     });
   };
 </script>
-
-
-
