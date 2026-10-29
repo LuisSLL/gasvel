@@ -1,11 +1,15 @@
 /**
  * Controlador de Productos
  * Archivo: 16_Ctrl_Productos.gs
+ *
+ * Roles que pueden VER productos: cualquiera con permiso 'productos'.
+ * Roles que pueden CREAR/EDITAR/ELIMINAR productos: admin.
  */
+
 class Ctrl_Productos extends Base_Controller {
 
   index() {
-    if (!this._checkAdminPermission()) {
+    if (!this._hasPermission('productos')) {
       return this._denyAccess();
     }
 
@@ -62,7 +66,20 @@ class Ctrl_Productos extends Base_Controller {
     };
 
     Base_Model.create(CONFIG.DB.PRODUCTOS, nuevo);
-    return JSON.stringify({ success: true, message: '¡Producto creado!' });
+
+    // 👇 Devolver el producto + el nombre de la categoría (para la fila)
+    var cat = Base_Model.all(CONFIG.DB.CATEGORIAS).find(function(c) {
+      return String(c.cat_id).trim() === String(nuevo.cat_id).trim();
+    });
+    var nuevoConCat = Object.assign({}, nuevo, {
+      cat_nombre: cat ? cat.nombre : 'Sin categoría'
+    });
+
+    return JSON.stringify({
+      success: true,
+      message: '¡Producto creado!',
+      producto: nuevoConCat
+    });
   }
 
   update(data) {
@@ -101,7 +118,20 @@ class Ctrl_Productos extends Base_Controller {
     };
 
     Base_Model.update(CONFIG.DB.PRODUCTOS, prod.product_id, updated);
-    return JSON.stringify({ success: true, message: '¡Producto actualizado!' });
+
+    // 👇 Devolver el producto + cat_nombre actualizado
+    var cat = Base_Model.all(CONFIG.DB.CATEGORIAS).find(function(c) {
+      return String(c.cat_id).trim() === String(updated.cat_id).trim();
+    });
+    var updatedConCat = Object.assign({}, updated, {
+      cat_nombre: cat ? cat.nombre : 'Sin categoría'
+    });
+
+    return JSON.stringify({
+      success: true,
+      message: '¡Producto actualizado!',
+      producto: updatedConCat
+    });
   }
 
   toggleActivo(data) {
@@ -124,7 +154,13 @@ class Ctrl_Productos extends Base_Controller {
     var nuevoEstado = !(prod.activo === true || prod.activo.toString().toUpperCase() === 'TRUE');
     Base_Model.update(CONFIG.DB.PRODUCTOS, prod.product_id, { activo: nuevoEstado });
 
-    return JSON.stringify({ success: true, message: nuevoEstado ? 'Producto activado' : 'Producto desactivado' });
+    // 👇 Devolver product_id + activo nuevo
+    return JSON.stringify({
+      success: true,
+      message: nuevoEstado ? 'Producto activado' : 'Producto desactivado',
+      product_id: prod.product_id,
+      activo: nuevoEstado
+    });
   }
 
   delete(data) {
@@ -145,7 +181,13 @@ class Ctrl_Productos extends Base_Controller {
     }
 
     Base_Model.delete(CONFIG.DB.PRODUCTOS, data.product_id);
-    return JSON.stringify({ success: true, message: '¡Producto eliminado!' });
+
+    // 👇 Devolver product_id eliminado
+    return JSON.stringify({
+      success: true,
+      message: '¡Producto eliminado!',
+      product_id: data.product_id
+    });
   }
 }
 
@@ -171,5 +213,3 @@ function deleteProducto(data) {
   var controller = new Ctrl_Productos();
   return controller.delete(data);
 }
-
-
