@@ -1,36 +1,29 @@
 /**
  * 1_Base_Controller.gs
  * Controlador base del Framework GASVEL
+ *
+ * Los roles ahora se manejan como STRINGS: 'admin', 'mozo', 'cocina',
+ * 'cliente', 'totem' (ver CONFIG.ROLES en 0_Config.gs).
+ *
+ * Cada rol tiene una lista de PERMISOS (columna 'permisos' en la hoja ROLES).
+ * Los permisos son strings separados por coma, ej: 'pedidos,mesas'.
+ * El admin edita esos permisos desde el panel de Roles con toggles.
  */
 
 class Base_Controller {
 
-  /**
-   * Renderizado con Layout
-   *
-   * @param {string} viewName
-   * @param {Object} data
-   * @param {string} layout
-   */
+  // ==========================================
+  // RENDERIZADO
+  // ==========================================
+
   view(viewName, data = {}, layout = 'Layout_Main') {
     return View.render(viewName, data, layout);
   }
 
-  /**
-   * Renderizado SIN layout (páginas standalone, ej: ticket de cocina
-   * pensado para imprimirse desde una pestaña propia).
-   */
   viewStandalone(viewName, data = {}) {
     return View.renderStandalone(viewName, data);
   }
 
-
-  /**
-   * Redirección HTTP simple vía meta-refresh / JS.
-   * Se usa en controladores cuando no hay sesión o el rol no tiene permiso.
-   *
-   * @param {string} routeName - nombre de ruta (ej: 'login', 'dashboard')
-   */
   redirect(routeName) {
     var url = WebApp.url(routeName);
     var html = '<!DOCTYPE html><html><head><base target="_top">' +
@@ -41,17 +34,10 @@ class Base_Controller {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
+  // ==========================================
+  // SESIÓN
+  // ==========================================
 
-  /**
-   * Genera una respuesta JSON estándar
-   *
-   * @param {boolean} success
-   * @param {string} message
-   * @param {Object|string} extra
-   */
-  /**
-   * Devuelve el usuario de la sesión activa (o null si no hay sesión).
-   */
   _getSessionUser() {
     var userProps = PropertiesService.getUserProperties();
     var sessionEmail = userProps.getProperty('userEmail');
@@ -61,89 +47,145 @@ class Base_Controller {
       return u.email && u.email.toString().trim().toLowerCase() === sessionEmail.toLowerCase();
     });
 
+    if (user) {
+      user.rol_id = this._normalizeRole(user.rol_id);
+    }
+
     return user || null;
   }
 
-  /**
-   * true si hay sesión activa y el usuario es ADMIN (rol_id 1)
-   */
   _checkAdminPermission() {
     var user = this._getSessionUser();
-    return !!user && parseInt(user.rol_id) === CONFIG.ROLES.ADMIN;
+    return !!user && user.rol_id === CONFIG.ROLES.ADMIN;
   }
 
   /**
-   * true si hay sesión activa y el rol del usuario está entre los permitidos.
-   * @param {number[]} allowedRoleIds
+   * @deprecated Usar _hasPermission() en su lugar.
+   * Se mantiene para compatibilidad con controladores viejos.
    */
-  _checkRolePermission(allowedRoleIds) {
+  _checkRolePermission(allowedRoles) {
     var user = this._getSessionUser();
     if (!user) return false;
-    return allowedRoleIds.indexOf(parseInt(user.rol_id)) !== -1;
+    return allowedRoles.indexOf(user.rol_id) !== -1;
+  }
+
+  // ==========================================
+  // PERMISOS (NUEVO)
+  // ==========================================
+
+  /**
+   * Devuelve el array de permisos del usuario actual.
+   * Ej: ['pedidos', 'mesas']
+   */
+  _getUserPermissions() {
+    var user = this._getSessionUser();
+    if (!user) return [];
+
+    var rol = Base_Model.all(CONFIG.DB.ROLES).find(function(r) {
+      return String(r.rol_id).trim().toLowerCase() === String(user.rol_id).trim().toLowerCase();
+    });
+
+    if (!rol || !rol.permisos) return [];
+
+    return String(rol.permisos)
+      .split(',')
+      .map(function(p) { return p.trim().toLowerCase(); })
+      .filter(function(p) { return p; });
+  }
+
+  /**
+   * true si el usuario actual tiene el permiso indicado.
+   * Ej: _hasPermission('pedidos') → true/false
+   */
+  _hasPermission(permiso) {
+    return this._getUserPermissions().indexOf(String(permiso || '').trim().toLowerCase()) !== -1;
+  }
+
+  // ==========================================
+  // HELPERS DE ROL
+  // ==========================================
+
+  _normalizeRole(rolRaw) {
+    var v = String(rolRaw === null || rolRaw === undefined ? '' : rolRaw).trim().toLowerCase();
+
+    var validos = Object.keys(CONFIG.ROLES).map(function(k) {
+      return CONFIG.ROLES[k];
+    });
+    if (validos.indexOf(v) !== -1) return v;
+
+    var mapa = {
+      '1': CONFIG.ROLES.ADMIN,
+      '2': CONFIG.ROLES.MOZO,
+      '3': CONFIG.ROLES.COCINA,
+      '4': CONFIG.ROLES.CLIENTE,
+      '5': CONFIG.ROLES.TOTEM
+    };
+    if (mapa[v]) return mapa[v];
+
+    return CONFIG.ROLES.CLIENTE;
+  }
+
+  _getRoleName(rolId) {
+    var key = this._normalizeRole(rolId);
+    return CONFIG.ROLE_LABELS[key] || 'Usuario';
+  }
+
+  _getRoleBadgeClass(rolId) {
+    var key = this._normalizeRole(rolId);
+    return CONFIG.ROLE_BADGES[key] || 'badge-secondary';
   }
 
   /**
    * Datos de sesión listos para el header/sidebar del dashboard.
-   * Centraliza esto para no repetir stubs hardcodeados ("Admin", "A") en
-   * cada controlador de módulo.
+   * Ahora incluye también el array de PERMISOS del usuario.
    */
   _getDashboardUserData() {
     var user = this._getSessionUser();
 
     if (!user) {
-      return { userName: 'Invitado', userInitial: 'I', userRole: 'Invitado', userRoleId: null };
+      return {
+        userName: 'Invitado',
+        userInitial: 'I',
+        userRole: 'Invitado',
+        userRoleId: null,
+        userPermissions: []
+      };
     }
-
-    var roleNames = {};
-    roleNames[CONFIG.ROLES.ADMIN] = 'Admin';
-    roleNames[CONFIG.ROLES.MOZO] = 'Mozo';       // 👈 antes decía CAJA (no existía)
-    roleNames[CONFIG.ROLES.COCINA] = 'Cocina';
-    roleNames[CONFIG.ROLES.CLIENTE] = 'Cliente';
-    roleNames[CONFIG.ROLES.TOTEM] = 'Invitado';  // 👈 NUEVO
-
-    var roleId = parseInt(user.rol_id);
 
     return {
       userName: user.nombre || 'Usuario',
       userInitial: (user.nombre || 'U').charAt(0).toUpperCase(),
-      userRole: roleNames[roleId] || 'Usuario',
-      userRoleId: roleId
+      userRole: this._getRoleName(user.rol_id),
+      userRoleId: user.rol_id,
+      userPermissions: this._getUserPermissions()   // 👈 NUEVO
     };
   }
 
-  /**
-   * Redirige a un usuario sin permiso a una página que SÍ pueda ver, en vez
-   * de mandarlo siempre a 'login' (lo cual, si ya tiene sesión activa, se ve
-   * exactamente como si se hubiera cerrado sesión y genera confusión).
-   * Solo va a 'login' cuando realmente no hay sesión.
-   */
   _denyAccess() {
     var user = this._getSessionUser();
+    if (!user) return this.redirect('login');
 
-    if (!user) {
-      return this.redirect('login');
-    }
+    var permisos = this._getUserPermissions();
 
-    var roleId = parseInt(user.rol_id);
-    var fallbackRoute = 'home';
+    // Redirigir al primer permiso que tenga
+    if (permisos.indexOf('pedidos') !== -1) return this.redirect('dashboard/pedidos');
+    if (permisos.indexOf('mesas') !== -1) return this.redirect('dashboard/mesas');
+    if (permisos.indexOf('productos') !== -1) return this.redirect('dashboard/productos');
+    if (permisos.indexOf('categorias') !== -1) return this.redirect('dashboard/categorias');
+    if (permisos.indexOf('usuarios') !== -1) return this.redirect('dashboard');
+    if (permisos.indexOf('roles') !== -1) return this.redirect('dashboard/roles');
+    if (permisos.indexOf('archivo') !== -1) return this.redirect('dashboard/archivo');
 
-    if (roleId === CONFIG.ROLES.ADMIN) {
-      fallbackRoute = 'dashboard';
-    } else if (roleId === CONFIG.ROLES.CAJA || roleId === CONFIG.ROLES.COCINA) {
-      fallbackRoute = 'dashboard/pedidos';
-    }
-
-    return this.redirect(fallbackRoute);
+    return this.redirect('home');
   }
 
+  // ==========================================
+  // RESPUESTAS JSON
+  // ==========================================
+
   jsonResponse(success, message, extra = {}) {
-
-    // Si extra es un string,
-    // lo tratamos como nombre de ruta.
     if (typeof extra === 'string') {
-
       const routeName = extra;
-
       extra = {
         url: WebApp.url(routeName),
         redirect: !!routeName,
@@ -151,12 +193,9 @@ class Base_Controller {
       };
     }
 
-
-    // Refrescar la URL actual
     if (success && !extra.url && extra.refresh) {
       extra.url = WebApp.url();
     }
-
 
     return {
       success: success,
@@ -167,6 +206,4 @@ class Base_Controller {
   }
 }
 
-
-// Registro global
 globalThis.Base_Controller = Base_Controller;
