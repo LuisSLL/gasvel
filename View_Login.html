@@ -5,19 +5,19 @@
       <p class="eyebrow">Acceso al sistema</p>
       <h1>Iniciar Sesión</h1>
     </div>
-    
+
     <form id="loginForm" class="auth-form">
       <input type="hidden" id="loginNext" value="<?= nextRoute || '' ?>">
       <div class="form-group">
         <label for="loginEmail">Email</label>
         <input type="email" id="loginEmail" placeholder="usuario@correo.com" required autocomplete="username">
       </div>
-      
+
       <div class="form-group">
         <label for="loginPass">Contraseña</label>
         <input type="password" id="loginPass" placeholder="••••••••" required autocomplete="current-password">
       </div>
-      
+
       <button type="submit" class="btn-auth-primary w-100">Ingresar</button>
     </form>
 
@@ -32,7 +32,10 @@
   document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('loginForm');
 
-    // Helper para obtener configuración visual según el tema
+    // ==========================================
+    // HELPERS
+    // ==========================================
+
     function getSwalTheme() {
       var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       return {
@@ -42,10 +45,38 @@
       };
     }
 
+    /**
+     * Redirección segura: intenta window.top, cae a window.location.
+     */
+    function redirigirA(url) {
+      if (!url) return;
+      try {
+        window.top.location.href = url;
+      } catch (e) {
+        window.location.href = url;
+      }
+    }
+
+    /**
+     * Parsea la respuesta del servidor (objeto o JSON string).
+     */
+    function parsearRespuesta(response) {
+      var data = response;
+      if (typeof response === 'string') {
+        try { data = JSON.parse(response); }
+        catch (e) { data = { success: false, message: 'Respuesta inválida.' }; }
+      }
+      return data;
+    }
+
+    // ==========================================
+    // LOGIN NORMAL
+    // ==========================================
+
     if (form) {
       form.addEventListener('submit', function(e) {
         e.preventDefault();
-        
+
         var email = document.getElementById('loginEmail').value.trim();
         var pass = document.getElementById('loginPass').value;
         var btn = form.querySelector('button[type="submit"]');
@@ -59,17 +90,7 @@
             btn.textContent = originalBtnText;
             btn.disabled = false;
 
-            // Adaptador: Procesa tanto Objeto como JSON String
-            var data = response;
-            if (typeof response === 'string') {
-              try {
-                data = JSON.parse(response);
-              } catch (err) {
-                console.error('Error al parsear JSON:', err);
-                data = { success: false, message: 'Respuesta del servidor no válida.' };
-              }
-            }
-
+            var data = parsearRespuesta(response);
             var swalBase = getSwalTheme();
             var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
 
@@ -81,14 +102,16 @@
 
               var redirectUrl = data.url || (baseUrl + '?p=home');
 
+              // ✅ FIX: botón obligatorio para garantizar user activation
               Swal.fire(Object.assign({}, swalBase, {
                 icon: 'success',
                 title: '¡Bienvenido!',
-                text: data.message || 'Sesión iniciada correctamente',
-                timer: 1200,
-                showConfirmButton: false
+                text: data.message || 'Sesión iniciada correctamente.',
+                confirmButtonText: 'Ir al sistema →',
+                allowOutsideClick: false,
+                allowEscapeKey: false
               })).then(function() {
-                window.top.location.href = redirectUrl;
+                redirigirA(redirectUrl);
               });
 
             } else {
@@ -113,34 +136,48 @@
       });
     }
 
-    // Handler para el botón de Invitado ("ORDENA YA")
+    // ==========================================
+    // BOTÓN ORDENA YA (GUEST)
+    // ==========================================
+
     var guestBtn = document.getElementById('guestOrderBtn');
     if (guestBtn) {
       guestBtn.addEventListener('click', function () {
         var originalText = guestBtn.textContent;
         guestBtn.textContent = 'Entrando...';
         guestBtn.disabled = true;
-        
+
         google.script.run
           .withSuccessHandler(function (response) {
             guestBtn.textContent = originalText;
             guestBtn.disabled = false;
-            var data = response;
-            if (typeof response === 'string') {
-              try { 
-                data = JSON.parse(response); 
-              } catch (err) { 
-                data = { success: false, message: 'Respuesta inválida.' }; 
-              }
-            }
+
+            var data = parsearRespuesta(response);
+            var swalBase = getSwalTheme();
+            var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+
             if (data && data.success) {
               if (data.user) {
                 localStorage.setItem('gasvel_user', JSON.stringify(data.user));
                 localStorage.setItem('gasvel_token', 'guest_session_' + Date.now());
               }
-              window.top.location.href = data.url;
+
+              var redirectUrl = data.url || (baseUrl + '?p=home');
+
+              // ✅ FIX: mismo patrón con botón obligatorio
+              Swal.fire(Object.assign({}, swalBase, {
+                icon: 'success',
+                title: '¡Listo!',
+                text: data.message || 'Entrando al POS...',
+                confirmButtonText: 'Ir al POS →',
+                allowOutsideClick: false,
+                allowEscapeKey: false
+              })).then(function() {
+                redirigirA(redirectUrl);
+              });
+
             } else {
-              Swal.fire(Object.assign({}, getSwalTheme(), {
+              Swal.fire(Object.assign({}, swalBase, {
                 icon: 'error',
                 title: 'No se pudo iniciar',
                 text: (data && data.message) || 'Intentá de nuevo.'
@@ -150,6 +187,7 @@
           .withFailureHandler(function (err) {
             guestBtn.textContent = originalText;
             guestBtn.disabled = false;
+
             Swal.fire(Object.assign({}, getSwalTheme(), {
               icon: 'error',
               title: 'Error de conexión',
@@ -161,3 +199,5 @@
     }
   });
 </script>
+      
+      
