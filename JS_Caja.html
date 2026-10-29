@@ -1,0 +1,503 @@
+<!-- JS_Caja.html -->
+<script>
+(function() {
+  var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+
+  // ==========================================
+  // ESTADO LOCAL
+  // ==========================================
+  var __cajaState = {
+    cajaAbierta: window.__CAJA_INIT ? window.__CAJA_INIT.cajaAbierta : null,
+    reporte: window.__CAJA_INIT ? window.__CAJA_INIT.reporte : null,
+    historial: window.__CAJA_INIT ? window.__CAJA_INIT.historial : []
+  };
+
+  // ==========================================
+  // HELPERS
+  // ==========================================
+  function fmtMoney(n) {
+    var v = parseFloat(n) || 0;
+    return '$ ' + v.toFixed(2);
+  }
+
+  function esc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function fmtFecha(f) {
+    if (!f) return '';
+    try {
+      var d = new Date(f);
+      if (isNaN(d.getTime())) return String(f);
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() +
+             ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    } catch (e) { return String(f); }
+  }
+
+  function fmtHora(f) {
+    if (!f) return '';
+    try {
+      var d = new Date(f);
+      if (isNaN(d.getTime())) return String(f);
+      var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+      return pad(d.getHours()) + ':' + pad(d.getMinutes());
+    } catch (e) { return String(f); }
+  }
+
+  // ==========================================
+  // RENDER PRINCIPAL
+  // ==========================================
+  function renderCaja() {
+    var cont = document.getElementById('cajaContent');
+    var actions = document.getElementById('cajaActions');
+    if (!cont) return;
+
+    var caja = __cajaState.cajaAbierta;
+    var rep = __cajaState.reporte;
+
+    // ---- Botón de acción (abrir / cerrar) ----
+    if (actions) {
+      if (caja) {
+        actions.innerHTML =
+          '<button type="button" class="btn btn-danger" onclick="abrirModalCierre()">' +
+            '<i class="fas fa-lock mr-1"></i> Cerrar caja' +
+          '</button>';
+      } else {
+        actions.innerHTML =
+          '<button type="button" class="btn btn-success" onclick="abrirModalCaja()">' +
+            '<i class="fas fa-lock-open mr-1"></i> Abrir caja' +
+          '</button>';
+      }
+    }
+
+    // ---- Si NO hay caja abierta: alerta + historial ----
+    if (!caja) {
+      var html = '';
+      html +=
+        '<div class="alert alert-info">' +
+          '<i class="fas fa-info-circle mr-1"></i> ' +
+          '<strong>No tenés ninguna caja abierta.</strong> Abrí una para empezar a cobrar.' +
+        '</div>';
+
+      html +=
+        '<div class="card card-outline card-navy">' +
+          '<div class="card-header"><h3 class="card-title">Historial reciente</h3></div>' +
+          '<div class="card-body p-0">';
+
+      if (!__cajaState.historial || __cajaState.historial.length === 0) {
+        html += '<p class="text-center text-muted p-4">No hay movimientos de caja aún.</p>';
+      } else {
+        html +=
+          '<table class="table table-striped mb-0">' +
+            '<thead><tr>' +
+              '<th>Fecha</th><th>Tipo</th><th class="text-right">Monto</th><th>Observaciones</th>' +
+            '</tr></thead><tbody>';
+
+        __cajaState.historial.forEach(function(h) {
+          html +=
+            '<tr>' +
+              '<td>' + esc(fmtFecha(h.fecha)) + '</td>' +
+              '<td><span class="badge ' + (h.tipo === 'APERTURA' ? 'badge-success' : 'badge-danger') + '">' +
+                esc(h.tipo) + '</span></td>' +
+              '<td class="text-right">' + fmtMoney(h.monto) + '</td>' +
+              '<td class="text-muted small">' + esc(h.observaciones || '') + '</td>' +
+            '</tr>';
+        });
+
+        html += '</tbody></table>';
+      }
+
+      html += '</div></div>';
+      cont.innerHTML = html;
+      return;
+    }
+
+    // ---- Con caja abierta: 3 small-boxes + desgloses + movimientos ----
+    var montoApertura  = rep ? (parseFloat(rep.monto_apertura)  || 0) : 0;
+    var totalCobrado   = rep ? (parseFloat(rep.total_cobrado)   || 0) : 0;
+    var montoEsperado  = rep ? (parseFloat(rep.monto_esperado)  || 0) : 0;
+    var cantPedidos    = rep && rep.cantidad_pedidos !== undefined ? rep.cantidad_pedidos : 0;
+    var fechaApertura  = rep ? rep.fecha_apertura : (caja.fecha_apertura || caja.fecha);
+    var porMetodo      = (rep && rep.por_metodo) || {};
+    var porTipo        = (rep && rep.por_tipo) || {};
+    var movimientos    = (rep && rep.movimientos) || [];
+
+    var html = '';
+
+    // ---- 3 small-boxes ----
+    html +=
+      '<div class="row">' +
+        '<div class="col-md-4">' +
+          '<div class="small-box bg-info">' +
+            '<div class="inner">' +
+              '<h3>' + fmtMoney(montoApertura) + '</h3>' +
+              '<p>Apertura</p>' +
+            '</div>' +
+            '<div class="icon"><i class="fas fa-lock-open"></i></div>' +
+            '<div class="small-box-footer">' + esc(fmtFecha(fechaApertura)) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-4">' +
+          '<div class="small-box bg-success">' +
+            '<div class="inner">' +
+              '<h3>' + fmtMoney(totalCobrado) + '</h3>' +
+              '<p>Cobrado (' + cantPedidos + ' pedidos)</p>' +
+            '</div>' +
+            '<div class="icon"><i class="fas fa-cash-register"></i></div>' +
+            '<div class="small-box-footer">Durante este turno</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-4">' +
+          '<div class="small-box bg-warning">' +
+            '<div class="inner">' +
+              '<h3>' + fmtMoney(montoEsperado) + '</h3>' +
+              '<p>Total esperado</p>' +
+            '</div>' +
+            '<div class="icon"><i class="fas fa-calculator"></i></div>' +
+            '<div class="small-box-footer">Apertura + Cobrado + Ingresos - Egresos</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    // ---- Desgloses ----
+    var metodosKeys = Object.keys(porMetodo);
+    var metodosHtml = '';
+    if (metodosKeys.length === 0) {
+      metodosHtml = '<p class="text-muted">Sin cobros aún.</p>';
+    } else {
+      metodosHtml = '<table class="table table-sm"><tbody>';
+      metodosKeys.forEach(function(k) {
+        metodosHtml +=
+          '<tr>' +
+            '<td>' + esc(k) + '</td>' +
+            '<td class="text-right">' + fmtMoney(porMetodo[k]) + '</td>' +
+          '</tr>';
+      });
+      metodosHtml += '</tbody></table>';
+    }
+
+    html +=
+      '<div class="row">' +
+        '<div class="col-md-6">' +
+          '<div class="card card-outline card-navy">' +
+            '<div class="card-header"><h3 class="card-title">Desglose por método de pago</h3></div>' +
+            '<div class="card-body">' + metodosHtml + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="col-md-6">' +
+          '<div class="card card-outline card-navy">' +
+            '<div class="card-header"><h3 class="card-title">Desglose por tipo de pedido</h3></div>' +
+            '<div class="card-body">' +
+              '<table class="table table-sm"><tbody>' +
+                '<tr><td>🪑 Local</td><td class="text-right">' + fmtMoney(porTipo['Local'] || 0) + '</td></tr>' +
+                '<tr><td>📦 Llevar</td><td class="text-right">' + fmtMoney(porTipo['Llevar'] || 0) + '</td></tr>' +
+              '</tbody></table>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    // ---- Movimientos manuales ----
+    html +=
+      '<div class="card card-outline card-navy">' +
+        '<div class="card-header">' +
+          '<h3 class="card-title">Movimientos manuales</h3>' +
+          '<div class="card-tools">' +
+            '<button type="button" class="btn btn-sm btn-primary" onclick="abrirModalMovimiento()">' +
+              '<i class="fas fa-plus mr-1"></i> Agregar movimiento' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="card-body p-0">';
+
+    if (movimientos.length === 0) {
+      html += '<p class="text-center text-muted p-4">No hay movimientos manuales.</p>';
+    } else {
+      html +=
+        '<table class="table table-striped mb-0">' +
+          '<thead><tr>' +
+            '<th>Hora</th><th>Tipo</th><th class="text-right">Monto</th><th>Descripción</th><th></th>' +
+          '</tr></thead><tbody>';
+
+      movimientos.forEach(function(m) {
+        var movId = m.id || m.movimiento_id;
+        html +=
+          '<tr id="mov-row-' + movId + '">' +
+            '<td>' + esc(fmtHora(m.creado || m.fecha)) + '</td>' +
+            '<td><span class="badge ' + (m.tipo === 'INGRESO' ? 'badge-success' : 'badge-danger') + '">' +
+              esc(m.tipo) + '</span></td>' +
+            '<td class="text-right">' + fmtMoney(m.monto) + '</td>' +
+            '<td class="text-muted small">' + esc(m.descripcion || '') + '</td>' +
+            '<td class="text-right">' +
+              '<button class="btn btn-sm btn-outline-danger" onclick="eliminarMovimiento(\'' + movId + '\')">' +
+                '<i class="fas fa-trash"></i>' +
+              '</button>' +
+            '</td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table>';
+    }
+
+    html += '</div></div>';
+
+    cont.innerHTML = html;
+  }
+
+  // ==========================================
+  // ABRIR CAJA (en vivo)
+  // ==========================================
+  window.abrirModalCaja = function() {
+    Swal.fire({
+      title: 'Abrir caja',
+      html: '<input id="swal-monto-apertura" type="number" min="0" step="0.01" ' +
+            'class="swal2-input" placeholder="Monto inicial" value="0">' +
+            '<input id="swal-obs-apertura" class="swal2-input" placeholder="Observaciones (opcional)">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Abrir caja',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      preConfirm: function() {
+        var monto = document.getElementById('swal-monto-apertura').value;
+        if (monto === '' || isNaN(parseFloat(monto)) || parseFloat(monto) < 0) {
+          Swal.showValidationMessage('Ingresá un monto válido.');
+          return false;
+        }
+        return {
+          monto_apertura: parseFloat(monto),
+          observaciones: document.getElementById('swal-obs-apertura').value.trim()
+        };
+      }
+    }).then(function(result) {
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            __cajaState.cajaAbierta = data.caja || null;
+            __cajaState.reporte = data.reporte || null;
+            renderCaja();
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Caja abierta!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .abrirCaja(result.value);
+    });
+  };
+
+  // ==========================================
+  // CERRAR CAJA (en vivo)
+  // ==========================================
+  window.abrirModalCierre = function() {
+    var rep = __cajaState.reporte;
+    var esperado = 0;
+    if (rep && rep.monto_esperado !== undefined) {
+      esperado = parseFloat(rep.monto_esperado) || 0;
+    } else if (window.__GASVEL_MONTO_ESPERADO) {
+      esperado = parseFloat(window.__GASVEL_MONTO_ESPERADO) || 0;
+    }
+
+    Swal.fire({
+      title: 'Cerrar caja',
+      html: '<p class="small mb-3">Monto esperado: <strong>$ ' + esperado.toFixed(2) + '</strong></p>' +
+            '<input id="swal-monto-cierre" type="number" min="0" step="0.01" ' +
+            'class="swal2-input" placeholder="Monto real contado" value="' + esperado.toFixed(2) + '">' +
+            '<input id="swal-obs-cierre" class="swal2-input" placeholder="Observaciones (opcional)">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Cerrar caja',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+      reverseButtons: true,
+      preConfirm: function() {
+        var monto = document.getElementById('swal-monto-cierre').value;
+        if (monto === '' || isNaN(parseFloat(monto)) || parseFloat(monto) < 0) {
+          Swal.showValidationMessage('Ingresá un monto válido.');
+          return false;
+        }
+        return {
+          monto_cierre: parseFloat(monto),
+          observaciones: document.getElementById('swal-obs-cierre').value.trim()
+        };
+      }
+    }).then(function(result) {
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            __cajaState.cajaAbierta = null;
+            __cajaState.reporte = null;
+            if (data.historial) __cajaState.historial = data.historial;
+            renderCaja();
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Caja cerrada!',
+              html: '<p>Diferencia: <strong>$ ' + (parseFloat(data.diferencia) || 0).toFixed(2) + '</strong></p>'
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .cerrarCaja(result.value);
+    });
+  };
+
+  // ==========================================
+  // AGREGAR MOVIMIENTO (en vivo)
+  // ==========================================
+  window.abrirModalMovimiento = function() {
+    Swal.fire({
+      title: 'Nuevo movimiento',
+      html: '<select id="swal-tipo-mov" class="swal2-input">' +
+            '<option value="INGRESO">Ingreso</option>' +
+            '<option value="EGRESO">Egreso</option>' +
+            '</select>' +
+            '<input id="swal-monto-mov" type="number" min="0.01" step="0.01" ' +
+            'class="swal2-input" placeholder="Monto">' +
+            '<input id="swal-desc-mov" class="swal2-input" placeholder="Descripción (opcional)">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Agregar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      preConfirm: function() {
+        var monto = document.getElementById('swal-monto-mov').value;
+        if (monto === '' || isNaN(parseFloat(monto)) || parseFloat(monto) <= 0) {
+          Swal.showValidationMessage('Ingresá un monto mayor a 0.');
+          return false;
+        }
+        return {
+          tipo: document.getElementById('swal-tipo-mov').value,
+          monto: parseFloat(monto),
+          descripcion: document.getElementById('swal-desc-mov').value.trim()
+        };
+      }
+    }).then(function(result) {
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            if (data.reporte) __cajaState.reporte = data.reporte;
+            renderCaja();
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Listo!',
+              timer: 1000,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .agregarMovimientoCaja(result.value);
+    });
+  };
+
+  // ==========================================
+  // ELIMINAR MOVIMIENTO (en vivo)
+  // ==========================================
+  window.eliminarMovimiento = function(id) {
+    Swal.fire({
+      title: '¿Eliminar este movimiento?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+      reverseButtons: true
+    }).then(function(result) {
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            if (data.reporte) __cajaState.reporte = data.reporte;
+            renderCaja();
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Movimiento eliminado!',
+              timer: 1000,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .eliminarMovimientoCaja({ movimiento_id: id });
+    });
+  };
+
+  // ==========================================
+  // INIT
+  // ==========================================
+  document.addEventListener('DOMContentLoaded', function() {
+    renderCaja();
+  });
+
+  // Si el DOM ya está listo, renderizamos ya
+  if (document.readyState !== 'loading') {
+    renderCaja();
+  }
+
+  window.__renderCaja = renderCaja;
+})();
+</script>
