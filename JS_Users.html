@@ -2,18 +2,18 @@
 <script>
   // ==========================================
   // CRUD DE USUARIOS (Editar, Crear, Eliminar)
+  // Roles ahora son strings: 'admin' | 'mozo' | 'cocina' | 'cliente' | 'totem'
   // ==========================================
 
   // ✅ Abrir modal de editar (llamado por onclick)
   window.openEditUserModal = function(userId) {
     console.log("🔍 ID recibido:", userId);
-    
+
     google.script.run
       .withSuccessHandler(function(response) {
-        // ✅ Parsear JSON a objeto
         var data = JSON.parse(response);
         console.log("✅ Datos del usuario:", data);
-        
+
         if (data && data.success && data.user) {
           const user = data.user;
           document.getElementById('edit_user_id').value = user.user_id;
@@ -22,9 +22,14 @@
           document.getElementById('edit_email').value = user.email || '';
           document.getElementById('edit_telefono').value = user.telefono || '';
           document.getElementById('edit_wpp').value = user.wpp || '';
-          document.getElementById('edit_roleId').value = user.rol_id;
+
+          // 👇 El rol_id ahora es string ('admin', 'mozo'...). El <select> del
+          // modal usa los mismos values, así que la asignación directa funciona.
+          // Si por alguna razón llegara un número viejo (1..5), lo mapeamos.
+          document.getElementById('edit_roleId').value = normalizarRol(user.rol_id);
+
           document.getElementById('edit_password').value = '';
-          
+
           $('#modalEditarUsuario').modal('show');
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al obtener datos del usuario.' });
@@ -51,7 +56,7 @@
       email: document.getElementById('edit_email').value,
       telefono: document.getElementById('edit_telefono').value,
       wpp: document.getElementById('edit_wpp').value,
-      roleId: document.getElementById('edit_roleId').value,
+      roleId: document.getElementById('edit_roleId').value,   // string: 'admin', 'mozo', ...
       password: document.getElementById('edit_password').value
     };
 
@@ -59,9 +64,9 @@
       .withSuccessHandler(function(response) {
         btn.textContent = 'Guardar Cambios';
         btn.disabled = false;
-        
+
         var data = JSON.parse(response);
-        
+
         if (data && data.success) {
           $('#modalEditarUsuario').modal('hide');
           Swal.fire({ icon: 'success', title: '¡Usuario actualizado!', timer: 2000 });
@@ -93,7 +98,7 @@
         google.script.run
           .withSuccessHandler(function(response) {
             var data = JSON.parse(response);
-            
+
             if (data && data.success) {
               Swal.fire({ icon: 'success', title: '¡Usuario eliminado!', timer: 2000 });
               window.top.location.href = SCRIPT_URL + "?p=dashboard";
@@ -126,7 +131,7 @@
           email: document.getElementById('create_email').value,
           phone: document.getElementById('create_telefono').value,
           wpp: document.getElementById('create_wpp').value,
-          roleId: parseInt(document.getElementById('create_roleId').value),
+          roleId: document.getElementById('create_roleId').value,  // string: 'admin', 'mozo', ...
           password: document.getElementById('create_password').value
         };
 
@@ -134,9 +139,9 @@
           .withSuccessHandler(function(response) {
             btn.textContent = 'Crear Usuario';
             btn.disabled = false;
-            
+
             var data = JSON.parse(response);
-            
+
             if (data && data.success) {
               $('#modalCrearUsuario').modal('hide');
               Swal.fire({ icon: 'success', title: '¡Usuario creado!', timer: 2000 });
@@ -154,4 +159,21 @@
       });
     }
   });
+
+  // ==========================================
+  // Helper: normalizar rol (por si llega número viejo)
+  // Acepta: 'admin' | 'mozo' | 'cocina' | 'cliente' | 'totem'
+  //   o los números viejos 1, 2, 3, 4, 5.
+  // ==========================================
+  function normalizarRol(rol) {
+    var v = String(rol === null || rol === undefined ? '' : rol).trim().toLowerCase();
+
+    // Si ya es string válido, devolverlo
+    var validos = ['admin', 'mozo', 'cocina', 'cliente', 'totem'];
+    if (validos.indexOf(v) !== -1) return v;
+
+    // Mapeo de números viejos
+    var mapa = { '1': 'admin', '2': 'mozo', '3': 'cocina', '4': 'cliente', '5': 'totem' };
+    return mapa[v] || 'cliente';
+  }
 </script>
