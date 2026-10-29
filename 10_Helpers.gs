@@ -18,6 +18,32 @@ const WebApp = {
 
 globalThis.WebApp = WebApp;
 
+// --- SERIALIZACIÓN JSON PARA TEMPLATES (<?= json_encode(...) ?>) ---
+
+function json_encode(obj) {
+  return JSON.stringify(obj);
+}
+
+globalThis.json_encode = json_encode;
+
+// --- GENERACIÓN DE NÚMERO DE PEDIDO ---
+
+function generarNumeroPedido() {
+  var props = PropertiesService.getScriptProperties();
+  var today = new Date();
+  var ymd = today.getFullYear().toString() +
+    ('0' + (today.getMonth() + 1)).slice(-2) +
+    ('0' + today.getDate()).slice(-2);
+
+  var key = 'pedido_seq_' + ymd;
+  var current = parseInt(props.getProperty(key) || '0', 10) + 1;
+  props.setProperty(key, current.toString());
+
+  return ymd + '-' + ('000' + current).slice(-4);
+}
+
+globalThis.generarNumeroPedido = generarNumeroPedido;
+
 // --- FORMATEO DE DATOS ---
 
 function formatDate(date) {
@@ -33,8 +59,16 @@ function formatCurrency(amount) {
   return '$ ' + parseFloat(amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
 }
 
+function formatDateTime(date) {
+  if (!date || !(date instanceof Date)) return date;
+  const hours = ("0" + date.getHours()).slice(-2);
+  const minutes = ("0" + date.getMinutes()).slice(-2);
+  return formatDate(date) + ' - ' + hours + ':' + minutes;
+}
+
 globalThis.formatDate = formatDate;
 globalThis.formatCurrency = formatCurrency;
+globalThis.formatDateTime = formatDateTime;
 
 // --- FUNCIÓN PARA CREAR ADMIN DE PRUEBA ---
 
