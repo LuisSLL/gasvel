@@ -2,6 +2,7 @@
  * 2_Base_Model.gs
  * Modelo base extendido para CRUD completo
  */
+
 class Base_Model {
 
   static getSpreadsheet(){
@@ -55,7 +56,7 @@ class Base_Model {
     var data = sheet.getDataRange().getValues();
     if (data.length === 0) return false;
     var headers = data[0];
-    
+
     var rowIndex = -1;
     for (var i = 0; i < data.length; i++) {
       if (data[i][0].toString().trim() === id.toString().trim()) {
@@ -63,7 +64,7 @@ class Base_Model {
         break;
       }
     }
-    
+
     if (rowIndex === -1) {
       console.error("No se encontró el ID:", id);
       return false;
@@ -84,7 +85,7 @@ class Base_Model {
     if (!sheet) return false;
     var data = sheet.getDataRange().getValues();
     if (data.length === 0) return false;
-    
+
     var rowIndex = -1;
     for (var i = 0; i < data.length; i++) {
       if (data[i][0].toString().trim() === id.toString().trim()) {
@@ -92,7 +93,7 @@ class Base_Model {
         break;
       }
     }
-    
+
     if (rowIndex !== -1) {
       sheet.deleteRow(rowIndex + 1);
       return true;
@@ -117,7 +118,6 @@ class Base_Model {
 
   /**
    * Crea (o re-crea) una hoja con los encabezados indicados.
-   * Usado por 0_Install.gs para inicializar el sistema desde cero.
    * Si la hoja ya existe, no la toca (evita perder datos existentes).
    */
   static createTable(sheetName, headers) {
@@ -125,7 +125,6 @@ class Base_Model {
     var sheet = ss.getSheetByName(sheetName);
 
     if (sheet) {
-      // La tabla ya existe: no se sobreescribe para no perder datos.
       return sheet;
     }
 
@@ -134,6 +133,50 @@ class Base_Model {
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
     return sheet;
+  }
+
+  // ==========================================
+  // MÉTODOS NUEVOS — BATCH / PERFORMANCE
+  // ==========================================
+  // Agregados para el módulo de archivado y utilidades de limpieza.
+  // NO modifican ni rompen los métodos existentes.
+  // ==========================================
+
+  /**
+   * Devuelve los headers (nombres de columnas) de una hoja.
+   * @return {string[]} array con los nombres de las columnas
+   */
+  static getHeaders(sheetName) {
+    var sheet = this.sheet(sheetName);
+    if (!sheet) return [];
+    if (sheet.getLastColumn() === 0) return [];
+    return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  }
+
+  /**
+   * Devuelve cuántas filas de datos (sin contar header) tiene una hoja.
+   * Mucho más rápido que all(sheetName).length.
+   * @return {number}
+   */
+  static count(sheetName) {
+    var sheet = this.sheet(sheetName);
+    if (!sheet) return 0;
+    return Math.max(0, sheet.getLastRow() - 1);
+  }
+
+  /**
+   * Borra TODAS las filas de datos de una hoja, dejando solo el header.
+   * Usa deleteRows en batch (1 sola llamada a la API).
+   * @return {number} cantidad de filas borradas
+   */
+  static clearAll(sheetName) {
+    var sheet = this.sheet(sheetName);
+    if (!sheet) return 0;
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return 0;
+    var cantidad = lastRow - 1;
+    sheet.deleteRows(2, cantidad);
+    return cantidad;
   }
 }
 
