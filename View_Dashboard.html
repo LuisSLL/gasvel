@@ -24,18 +24,18 @@
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="usersTbody">
             <? if (typeof users !== 'undefined' && users.length > 0) { ?>
               <? for (var i = 0; i < users.length; i++) { ?>
-                <tr>
-                  <td><?= users[i].user_id ?></td>
-                  <td><?= users[i].nombre ?></td>
-                  <td><?= users[i].apellido || '' ?></td>
-                  <td><?= users[i].telefono || '' ?></td>
-                  <td><?= users[i].email ?></td>
-                  <td>
-                    <span class="badge <?= parseInt(users[i].rol_id) === 1 ? 'badge-danger' : (parseInt(users[i].rol_id) === 2 ? 'badge-info' : (parseInt(users[i].rol_id) === 3 ? 'badge-warning' : 'badge-secondary')) ?>">
-                       <?= parseInt(users[i].rol_id) === 1 ? 'Admin' : (parseInt(users[i].rol_id) === 2 ? 'Cajero' : (parseInt(users[i].rol_id) === 3 ? 'Cocina' : 'Cliente')) ?>
+                <tr id="user-row-<?= users[i].user_id ?>">
+                  <td class="user-id"><?= users[i].user_id ?></td>
+                  <td class="user-nombre"><?= users[i].nombre ?></td>
+                  <td class="user-apellido"><?= users[i].apellido || '' ?></td>
+                  <td class="user-telefono"><?= users[i].telefono || '' ?></td>
+                  <td class="user-email"><?= users[i].email ?></td>
+                  <td class="user-rol">
+                    <span class="badge <?= users[i].rol_badge || 'badge-secondary' ?>">
+                      <?= users[i].rol_nombre || 'Usuario' ?>
                     </span>
                   </td>
                   <td class="text-center">
@@ -92,10 +92,11 @@
             <label>Rol de Sistema</label>
             <select id="create_roleId" class="form-control" required>
               <option value="">Seleccionar rol...</option>
-              <option value="1">Admin</option>
-              <option value="2">Cajero</option>
-              <option value="3">Cocina</option>
-              <option value="4">Cliente</option>
+              <option value="admin">Admin</option>
+              <option value="mozo">Mozo</option>
+              <option value="cocina">Cocina</option>
+              <option value="cliente">Cliente</option>
+              <option value="totem">Tótem</option>
             </select>
           </div>
           <div class="form-group">
@@ -125,7 +126,6 @@
       <form id="formEditarUsuario" onsubmit="guardarEdicionUsuario(event)">
         <div class="modal-body">
           <input type="hidden" id="edit_user_id">
-          
           <div class="form-group">
             <label>Nombre</label>
             <input type="text" id="edit_nombre" class="form-control" required>
@@ -150,10 +150,11 @@
             <label>Rol de Sistema</label>
             <select id="edit_roleId" class="form-control" required>
               <option value="">Seleccionar rol...</option>
-              <option value="1">Admin</option>
-              <option value="2">Cajero</option>
-              <option value="3">Cocina</option>
-              <option value="4">Cliente</option>
+              <option value="admin">Admin</option>
+              <option value="mozo">Mozo</option>
+              <option value="cocina">Cocina</option>
+              <option value="cliente">Cliente</option>
+              <option value="totem">Tótem</option>
             </select>
           </div>
           <div class="form-group">
@@ -169,3 +170,334 @@
     </div>
   </div>
 </div>
+
+<script>
+  var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+  var __usersData = <?!= json_encode(users) ?>;
+
+  // Mapa de roles → nombre visible + badge
+  var ROLES_MAP = {
+    admin:   { nombre: 'Admin',   badge: 'badge-danger' },
+    mozo:    { nombre: 'Mozo',    badge: 'badge-info' },
+    cocina:  { nombre: 'Cocina',  badge: 'badge-warning' },
+    cliente: { nombre: 'Cliente', badge: 'badge-success' },
+    totem:   { nombre: 'Tótem',   badge: 'badge-secondary' }
+  };
+
+  function normalizarRol(rol) {
+    var v = String(rol === null || rol === undefined ? '' : rol).trim().toLowerCase();
+    var validos = ['admin', 'mozo', 'cocina', 'cliente', 'totem'];
+    if (validos.indexOf(v) !== -1) return v;
+    var mapa = { '1': 'admin', '2': 'mozo', '3': 'cocina', '4': 'cliente', '5': 'totem' };
+    return mapa[v] || 'cliente';
+  }
+
+  // ==========================================
+  // HELPERS DE RENDER EN VIVO
+  // ==========================================
+
+  function userEsc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderFilaUsuario(u) {
+    var rolId = normalizarRol(u.rol_id);
+    var rolInfo = ROLES_MAP[rolId] || { nombre: 'Usuario', badge: 'badge-secondary' };
+
+    return '' +
+      '<tr id="user-row-' + u.user_id + '">' +
+        '<td class="user-id">' + u.user_id + '</td>' +
+        '<td class="user-nombre">' + userEsc(u.nombre || '') + '</td>' +
+        '<td class="user-apellido">' + userEsc(u.apellido || '') + '</td>' +
+        '<td class="user-telefono">' + userEsc(u.telefono || '') + '</td>' +
+        '<td class="user-email">' + userEsc(u.email || '') + '</td>' +
+        '<td class="user-rol">' +
+          '<span class="badge ' + rolInfo.badge + '">' + rolInfo.nombre + '</span>' +
+        '</td>' +
+        '<td class="text-center">' +
+          '<button class="btn btn-sm btn-warning" onclick="openEditUserModal(\'' + u.user_id + '\')" title="Editar">' +
+            '<i class="fas fa-edit"></i>' +
+          '</button> ' +
+          '<button class="btn btn-sm btn-danger" onclick="confirmDeleteUser(\'' + u.user_id + '\')" title="Eliminar">' +
+            '<i class="fas fa-trash"></i>' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  }
+
+  function actualizarFilaUsuario(userId, data) {
+    var tr = document.getElementById('user-row-' + userId);
+    if (!tr) return;
+
+    if (data.nombre !== undefined) {
+      tr.querySelector('.user-nombre').textContent = data.nombre;
+    }
+    if (data.apellido !== undefined) {
+      tr.querySelector('.user-apellido').textContent = data.apellido || '';
+    }
+    if (data.telefono !== undefined) {
+      tr.querySelector('.user-telefono').textContent = data.telefono || '';
+    }
+    if (data.email !== undefined) {
+      tr.querySelector('.user-email').textContent = data.email;
+    }
+    if (data.rol_id !== undefined) {
+      var rolId = normalizarRol(data.rol_id);
+      var rolInfo = ROLES_MAP[rolId] || { nombre: 'Usuario', badge: 'badge-secondary' };
+      var badge = tr.querySelector('.user-rol .badge');
+      if (badge) {
+        badge.className = 'badge ' + rolInfo.badge;
+        badge.textContent = rolInfo.nombre;
+      }
+    }
+
+    // Actualizar caché
+    var idx = __usersData.findIndex(function(u) {
+      return String(u.user_id) === String(userId);
+    });
+    if (idx !== -1) {
+      if (data.nombre !== undefined) __usersData[idx].nombre = data.nombre;
+      if (data.apellido !== undefined) __usersData[idx].apellido = data.apellido;
+      if (data.telefono !== undefined) __usersData[idx].telefono = data.telefono;
+      if (data.email !== undefined) __usersData[idx].email = data.email;
+      if (data.wpp !== undefined) __usersData[idx].wpp = data.wpp;
+      if (data.rol_id !== undefined) __usersData[idx].rol_id = data.rol_id;
+    }
+  }
+
+  function agregarFilaUsuario(u) {
+    var tbody = document.getElementById('usersTbody');
+    if (!tbody) return;
+
+    tbody.insertAdjacentHTML('beforeend', renderFilaUsuario(u));
+    __usersData.push(u);
+
+    // Animación de entrada
+    var nuevaFila = document.getElementById('user-row-' + u.user_id);
+    if (nuevaFila) {
+      nuevaFila.style.opacity = '0';
+      nuevaFila.style.transition = 'opacity .3s ease';
+      requestAnimationFrame(function() { nuevaFila.style.opacity = '1'; });
+    }
+  }
+
+  function eliminarFilaUsuario(userId) {
+    var tr = document.getElementById('user-row-' + userId);
+    if (!tr) return;
+
+    tr.style.transition = 'opacity .3s ease';
+    tr.style.opacity = '0';
+    setTimeout(function() {
+      tr.remove();
+      __usersData = __usersData.filter(function(u) {
+        return String(u.user_id) !== String(userId);
+      });
+    }, 300);
+  }
+
+  // ==========================================
+  // ABRIR MODAL EDITAR (lee del caché)
+  // ==========================================
+  window.openEditUserModal = function(userId) {
+    var user = __usersData.find(function(u) {
+      return String(u.user_id) === String(userId);
+    });
+
+    if (!user) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Usuario no encontrado' });
+      return;
+    }
+
+    document.getElementById('edit_user_id').value = user.user_id;
+    document.getElementById('edit_nombre').value = user.nombre || '';
+    document.getElementById('edit_apellido').value = user.apellido || '';
+    document.getElementById('edit_email').value = user.email || '';
+    document.getElementById('edit_telefono').value = user.telefono || '';
+    document.getElementById('edit_wpp').value = user.wpp || '';
+    document.getElementById('edit_roleId').value = normalizarRol(user.rol_id);
+    document.getElementById('edit_password').value = '';
+
+    $('#modalEditarUsuario').modal('show');
+  };
+
+  // ==========================================
+  // CREAR (en vivo)
+  // ==========================================
+  document.addEventListener('DOMContentLoaded', function() {
+    const createUserForm = document.getElementById('formCrearUsuario');
+    if (!createUserForm) return;
+
+    createUserForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const btn = createUserForm.querySelector('button[type="submit"]');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Creando...';
+      btn.disabled = true;
+
+      const payload = {
+        name: document.getElementById('create_nombre').value,
+        lastName: document.getElementById('create_apellido').value,
+        email: document.getElementById('create_email').value,
+        phone: document.getElementById('create_telefono').value,
+        wpp: document.getElementById('create_wpp').value,
+        roleId: document.getElementById('create_roleId').value,
+        password: document.getElementById('create_password').value
+      };
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (err) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data && data.success) {
+            $('#modalCrearUsuario').modal('hide');
+            createUserForm.reset();
+
+            // 🔥 ACTUALIZACIÓN EN VIVO
+            if (data.user) {
+              agregarFilaUsuario(data.user);
+            }
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Usuario creado!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al crear el usuario.' });
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .createUser(payload);
+    });
+  });
+
+  // ==========================================
+  // ACTUALIZAR (en vivo)
+  // ==========================================
+  window.guardarEdicionUsuario = function(event) {
+    event.preventDefault();
+
+    const btn = document.querySelector('#formEditarUsuario button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+    btn.disabled = true;
+
+    const userId = document.getElementById('edit_user_id').value;
+    const payload = {
+      user_id: userId,
+      nombre: document.getElementById('edit_nombre').value,
+      apellido: document.getElementById('edit_apellido').value,
+      email: document.getElementById('edit_email').value,
+      telefono: document.getElementById('edit_telefono').value,
+      wpp: document.getElementById('edit_wpp').value,
+      roleId: document.getElementById('edit_roleId').value,
+      password: document.getElementById('edit_password').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (err) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        if (data && data.success) {
+          $('#modalEditarUsuario').modal('hide');
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          actualizarFilaUsuario(userId, {
+            nombre: payload.nombre,
+            apellido: payload.apellido,
+            telefono: payload.telefono,
+            email: payload.email,
+            wpp: payload.wpp,
+            rol_id: payload.roleId
+          });
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Usuario actualizado!',
+            timer: 1200,
+            showConfirmButton: false
+          });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al actualizar el usuario.' });
+        }
+      })
+      .withFailureHandler(function(err) {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .updateUser(payload);
+  };
+
+  // ==========================================
+  // ELIMINAR (en vivo)
+  // ==========================================
+  window.confirmDeleteUser = function(userId) {
+    Swal.fire({
+      title: '¿Eliminar este usuario?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#E2572B',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    }).then(function(result) {
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (err) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data && data.success) {
+            // 🔥 ELIMINACIÓN EN VIVO
+            eliminarFilaUsuario(userId);
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Usuario eliminado!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'Error al eliminar el usuario.' });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .deleteUser({ user_id: userId });
+    });
+  };
+</script>
