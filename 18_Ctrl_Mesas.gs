@@ -1,11 +1,16 @@
 /**
  * Controlador de Mesas
  * Archivo: 18_Ctrl_Mesas.gs
+ *
+ * Ver mesas: cualquiera con permiso 'mesas'.
+ * Cambiar estado: cualquiera con permiso 'mesas'.
+ * Crear/Editar/Eliminar: admin.
  */
+
 class Ctrl_Mesas extends Base_Controller {
 
   index() {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA])) {
+    if (!this._hasPermission('mesas')) {
       return this._denyAccess();
     }
 
@@ -48,7 +53,13 @@ class Ctrl_Mesas extends Base_Controller {
     };
 
     Base_Model.create(CONFIG.DB.MESAS, nueva);
-    return JSON.stringify({ success: true, message: '¡Mesa creada!' });
+
+    // 👇 Devolver la mesa creada para pintarla en vivo
+    return JSON.stringify({
+      success: true,
+      message: '¡Mesa creada!',
+      mesa: nueva
+    });
   }
 
   update(data) {
@@ -77,15 +88,17 @@ class Ctrl_Mesas extends Base_Controller {
     };
 
     Base_Model.update(CONFIG.DB.MESAS, mesa.mesa_num, updated);
-    return JSON.stringify({ success: true, message: '¡Mesa actualizada!' });
+
+    // 👇 Devolver la mesa actualizada
+    return JSON.stringify({
+      success: true,
+      message: '¡Mesa actualizada!',
+      mesa: updated
+    });
   }
 
-  /**
-   * Cambia solo el estado de una mesa (LIBRE / OCUPADA / RESERVADA).
-   * Usado desde el POS y desde el panel de Mesas.
-   */
   setEstado(data) {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA])) {
+    if (!this._hasPermission('mesas')) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
     }
 
@@ -106,7 +119,14 @@ class Ctrl_Mesas extends Base_Controller {
     }
 
     Base_Model.update(CONFIG.DB.MESAS, mesa.mesa_num, { estado: data.estado });
-    return JSON.stringify({ success: true, message: 'Estado de mesa actualizado' });
+
+    // 👇 Devolver mesa_num + estado nuevo
+    return JSON.stringify({
+      success: true,
+      message: 'Estado de mesa actualizado',
+      mesa_num: mesa.mesa_num,
+      estado: data.estado
+    });
   }
 
   delete(data) {
@@ -128,7 +148,13 @@ class Ctrl_Mesas extends Base_Controller {
     }
 
     Base_Model.delete(CONFIG.DB.MESAS, data.mesa_num);
-    return JSON.stringify({ success: true, message: '¡Mesa eliminada!' });
+
+    // 👇 Devolver mesa_num eliminado
+    return JSON.stringify({
+      success: true,
+      message: '¡Mesa eliminada!',
+      mesa_num: data.mesa_num
+    });
   }
 }
 
@@ -154,5 +180,3 @@ function deleteMesa(data) {
   var controller = new Ctrl_Mesas();
   return controller.delete(data);
 }
-
-
