@@ -21,15 +21,14 @@
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="mesasTbody">
             <? if (mesas && mesas.length > 0) { ?>
               <? for (var i = 0; i < mesas.length; i++) { ?>
                 <? var m = mesas[i]; ?>
-                <? var badgeClass = m.estado === 'LIBRE' ? 'badge-success' : (m.estado === 'OCUPADA' ? 'badge-danger' : 'badge-warning'); ?>
-                <tr>
-                  <td>#<?= m.mesa_num ?></td>
-                  <td><?= m.capacidad ?> personas</td>
-                  <td>
+                <tr id="mesa-row-<?= m.mesa_num ?>">
+                  <td class="mesa-num">#<?= m.mesa_num ?></td>
+                  <td class="mesa-cap"><?= m.capacidad ?> personas</td>
+                  <td class="mesa-estado">
                     <select class="form-control form-control-sm d-inline-block w-auto badge-select" onchange="cambiarEstadoMesa(<?= m.mesa_num ?>, this.value)">
                       <? for (var j = 0; j < estados.length; j++) { ?>
                         <option value="<?= estados[j] ?>" <?= estados[j] === m.estado ? 'selected' : '' ?>><?= estados[j] ?></option>
@@ -114,9 +113,107 @@
 <script>
   var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
   var __mesasData = <?!= json_encode(mesas) ?>;
+  var __estadosMesa = <?!= json_encode(estados) ?>;
 
+  // ==========================================
+  // HELPERS DE RENDER EN VIVO
+  // ==========================================
+
+  function renderOpcionesEstado(estadoActual) {
+    return __estadosMesa.map(function(e) {
+      return '<option value="' + e + '" ' + (e === estadoActual ? 'selected' : '') + '>' + e + '</option>';
+    }).join('');
+  }
+
+  function renderFilaMesa(m) {
+    return '' +
+      '<tr id="mesa-row-' + m.mesa_num + '">' +
+        '<td class="mesa-num">#' + m.mesa_num + '</td>' +
+        '<td class="mesa-cap">' + m.capacidad + ' personas</td>' +
+        '<td class="mesa-estado">' +
+          '<select class="form-control form-control-sm d-inline-block w-auto badge-select" onchange="cambiarEstadoMesa(' + m.mesa_num + ', this.value)">' +
+            renderOpcionesEstado(m.estado) +
+          '</select>' +
+        '</td>' +
+        '<td class="text-center">' +
+          '<button class="btn btn-sm btn-warning" onclick="openEditMesaModal(' + m.mesa_num + ')" title="Editar">' +
+            '<i class="fas fa-edit"></i>' +
+          '</button> ' +
+          '<button class="btn btn-sm btn-danger" onclick="confirmDeleteMesa(' + m.mesa_num + ')" title="Eliminar">' +
+            '<i class="fas fa-trash"></i>' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  }
+
+  function actualizarFilaMesa(mesaNum, data) {
+    var tr = document.getElementById('mesa-row-' + mesaNum);
+    if (!tr) return;
+
+    if (data.capacidad !== undefined) {
+      tr.querySelector('.mesa-cap').textContent = data.capacidad + ' personas';
+    }
+    if (data.estado !== undefined) {
+      var sel = tr.querySelector('.mesa-estado select');
+      if (sel) sel.value = data.estado;
+    }
+
+    // Actualizar caché
+    var idx = __mesasData.findIndex(function(m) {
+      return String(m.mesa_num) === String(mesaNum);
+    });
+    if (idx !== -1) {
+      if (data.capacidad !== undefined) __mesasData[idx].capacidad = data.capacidad;
+      if (data.estado !== undefined) __mesasData[idx].estado = data.estado;
+    }
+  }
+
+  function agregarFilaMesa(m) {
+    var tbody = document.getElementById('mesasTbody');
+    if (!tbody) return;
+
+    tbody.insertAdjacentHTML('beforeend', renderFilaMesa(m));
+    __mesasData.push(m);
+
+    // Reordenar por mesa_num
+    var filas = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    filas.sort(function(a, b) {
+      var idA = parseInt(a.querySelector('.mesa-num').textContent.replace('#', ''), 10) || 0;
+      var idB = parseInt(b.querySelector('.mesa-num').textContent.replace('#', ''), 10) || 0;
+      return idA - idB;
+    });
+    filas.forEach(function(f) { tbody.appendChild(f); });
+
+    // Animación de entrada
+    var nuevaFila = document.getElementById('mesa-row-' + m.mesa_num);
+    if (nuevaFila) {
+      nuevaFila.style.opacity = '0';
+      nuevaFila.style.transition = 'opacity .3s ease';
+      requestAnimationFrame(function() { nuevaFila.style.opacity = '1'; });
+    }
+  }
+
+  function eliminarFilaMesa(mesaNum) {
+    var tr = document.getElementById('mesa-row-' + mesaNum);
+    if (!tr) return;
+
+    tr.style.transition = 'opacity .3s ease';
+    tr.style.opacity = '0';
+    setTimeout(function() {
+      tr.remove();
+      __mesasData = __mesasData.filter(function(m) {
+        return String(m.mesa_num) !== String(mesaNum);
+      });
+    }, 300);
+  }
+
+  // ==========================================
+  // MODAL EDITAR
+  // ==========================================
   window.openEditMesaModal = function(mesaNum) {
-    var mesa = __mesasData.find(function(m) { return String(m.mesa_num) === String(mesaNum); });
+    var mesa = __mesasData.find(function(m) {
+      return String(m.mesa_num) === String(mesaNum);
+    });
 
     if (mesa) {
       document.getElementById('edit_mesa_num').value = mesa.mesa_num;
@@ -127,8 +224,17 @@
     }
   };
 
+  // ==========================================
+  // CREAR (en vivo)
+  // ==========================================
   window.guardarMesa = function(event) {
     event.preventDefault();
+
+    var btn = document.querySelector('#formCrearMesa button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Creando...';
+
     var payload = {
       mesa_num: document.getElementById('create_mesa_num').value,
       capacidad: document.getElementById('create_mesa_cap').value
@@ -136,73 +242,188 @@
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalCrearMesa').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Mesa creada!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/mesas';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          if (data.mesa) {
+            agregarFilaMesa(data.mesa);
+          }
+
+          document.getElementById('formCrearMesa').reset();
+          document.getElementById('create_mesa_cap').value = '4';
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Mesa creada!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
       .createMesa(payload);
   };
 
+  // ==========================================
+  // ACTUALIZAR (en vivo)
+  // ==========================================
   window.actualizarMesa = function(event) {
     event.preventDefault();
+
+    var btn = document.querySelector('#formEditarMesa button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+
+    var mesaNum = document.getElementById('edit_mesa_num').value;
     var payload = {
-      mesa_num: document.getElementById('edit_mesa_num').value,
+      mesa_num: mesaNum,
       capacidad: document.getElementById('edit_mesa_cap').value
     };
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalEditarMesa').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Mesa actualizada!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/mesas';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          actualizarFilaMesa(mesaNum, {
+            capacidad: parseInt(payload.capacidad, 10)
+          });
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Mesa actualizada!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .updateMesa(payload);
   };
 
+  // ==========================================
+  // CAMBIAR ESTADO (en vivo)
+  // ==========================================
   window.cambiarEstadoMesa = function(mesaNum, nuevoEstado) {
+    var tr = document.getElementById('mesa-row-' + mesaNum);
+    var sel = tr ? tr.querySelector('.mesa-estado select') : null;
+    var estadoAnterior = sel ? sel.getAttribute('data-prev') || sel.value : null;
+
+    // Guardar estado anterior para revertir si falla
+    if (sel) sel.setAttribute('data-prev', nuevoEstado);
+
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
         if (data.success) {
-          Swal.fire({ icon: 'success', title: 'Estado actualizado', timer: 1200, showConfirmButton: false });
+          // 🔥 Ya está reflejado en el <select>, solo actualizamos el caché
+          var idx = __mesasData.findIndex(function(m) {
+            return String(m.mesa_num) === String(mesaNum);
+          });
+          if (idx !== -1) __mesasData[idx].estado = nuevoEstado;
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Estado actualizado',
+            timer: 1000,
+            showConfirmButton: false
+          });
         } else {
+          // Revertir el select al estado anterior
+          if (sel && estadoAnterior) sel.value = estadoAnterior;
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
+      })
+      .withFailureHandler(function(err) {
+        if (sel && estadoAnterior) sel.value = estadoAnterior;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .setEstadoMesa({ mesa_num: mesaNum, estado: nuevoEstado });
   };
 
+  // ==========================================
+  // ELIMINAR (en vivo)
+  // ==========================================
   window.confirmDeleteMesa = function(mesaNum) {
     Swal.fire({
       title: '¿Eliminar esta mesa?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#E2572B',
-      confirmButtonText: 'Sí, eliminar'
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
     }).then(function(result) {
-      if (result.isConfirmed) {
-        google.script.run
-          .withSuccessHandler(function(response) {
-            var data = JSON.parse(response);
-            if (data.success) {
-              Swal.fire({ icon: 'success', title: '¡Mesa eliminada!', timer: 2000 });
-              window.top.location.href = baseUrl + '?p=dashboard/mesas';
-            } else {
-              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
-            }
-          })
-          .deleteMesa({ mesa_num: mesaNum });
-      }
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            // 🔥 ELIMINACIÓN EN VIVO
+            eliminarFilaMesa(mesaNum);
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Mesa eliminada!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .deleteMesa({ mesa_num: mesaNum });
     });
   };
 </script>
-
