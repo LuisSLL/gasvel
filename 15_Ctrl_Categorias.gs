@@ -1,11 +1,15 @@
 /**
  * Controlador de Categorías
  * Archivo: 15_Ctrl_Categorias.gs
+ *
+ * Ver categorías: cualquiera con permiso 'categorias'.
+ * Crear/Editar/Eliminar: admin.
  */
+
 class Ctrl_Categorias extends Base_Controller {
 
   index() {
-    if (!this._checkAdminPermission()) {
+    if (!this._hasPermission('categorias')) {
       return this._denyAccess();
     }
 
@@ -42,7 +46,13 @@ class Ctrl_Categorias extends Base_Controller {
     };
 
     Base_Model.create(CONFIG.DB.CATEGORIAS, nueva);
-    return JSON.stringify({ success: true, message: '¡Categoría creada!' });
+
+    // 👇 Devolver la categoría creada para que el front la pinte en vivo
+    return JSON.stringify({
+      success: true,
+      message: '¡Categoría creada!',
+      categoria: nueva
+    });
   }
 
   update(data) {
@@ -70,7 +80,13 @@ class Ctrl_Categorias extends Base_Controller {
     };
 
     Base_Model.update(CONFIG.DB.CATEGORIAS, cat.cat_id, updated);
-    return JSON.stringify({ success: true, message: '¡Categoría actualizada!' });
+
+    // 👇 Devolver la categoría actualizada
+    return JSON.stringify({
+      success: true,
+      message: '¡Categoría actualizada!',
+      categoria: updated
+    });
   }
 
   delete(data) {
@@ -91,7 +107,13 @@ class Ctrl_Categorias extends Base_Controller {
     }
 
     Base_Model.delete(CONFIG.DB.CATEGORIAS, data.cat_id);
-    return JSON.stringify({ success: true, message: '¡Categoría eliminada!' });
+
+    // 👇 Devolver el cat_id eliminado para que el front sepa qué fila borrar
+    return JSON.stringify({
+      success: true,
+      message: '¡Categoría eliminada!',
+      cat_id: data.cat_id
+    });
   }
 }
 
@@ -112,5 +134,3 @@ function deleteCategoria(data) {
   var controller = new Ctrl_Categorias();
   return controller.delete(data);
 }
-
-
