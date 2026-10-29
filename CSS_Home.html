@@ -611,90 +611,133 @@ button{ font-family: inherit; cursor:pointer; }
   box-shadow:none !important;
 }
 
-/* ===== RESPONSIVE ===== */
+/* ============================================
+   ===== RESPONSIVE (solo ajuste de ancho) =====
+   ============================================ */
+
 @media (max-width: 980px){
-  .pos-shell{ grid-template-columns: 1fr; }
-  .order-pane{ position:static; }
+  .pos-shell{
+    grid-template-columns: 1fr;
+    padding: 24px 20px 40px;
+  }
+  .order-pane{ position: static; margin-top: 8px; }
 }
 
 @media (max-width: 768px) {
+  /* Topbar compacto */
   .topbar-inner {
-    padding: 10px 16px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  
-  .brand-text .brand-sub {
-    display: none;
-  }
-  
-  .topbar-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    padding: 10px 12px;
     gap: 6px;
+    flex-wrap: nowrap;
   }
-  
-  .admin-chip .admin-name {
-    display: none !important;
-  }
-  
-  /* Responsive Botones Auth (Solo íconos) */
+  .brand-text .brand-sub { display: none; }
+  .brand-name { font-size: 16px; }
+  .brand-mark { width: 32px; height: 32px; font-size: 16px; }
+
+  .topbar-actions { gap: 5px; flex-wrap: nowrap; }
+
+  /* Botones auth solo íconos */
   .register-btn span,
   .logout-btn span,
-  .login-btn span {
-    display: none !important;
-  }
-  
+  .login-btn span { display: none !important; }
   .register-btn,
-  .logout-btn {
-    padding: 8px;
+  .logout-btn { padding: 8px; }
+  .login-btn { padding: 8px 12px; }
+  .admin-chip .admin-name { display: none !important; }
+  .mesa-badge { font-size: 11px; padding: 3px 10px; margin-right: 4px; }
+
+  /* POS Shell: sin desbordes */
+  .pos-shell {
+    padding: 16px 12px 40px;
+    gap: 14px;
   }
-  
-  .login-btn {
-    padding: 8px 12px;
+
+  .menu-pane {
+    padding: 16px 12px;
+    border-radius: 16px;
+    overflow: hidden; /* contiene las tarjetas */
   }
-  
-  .mesa-badge {
+
+  .menu-heading { margin-bottom: 16px; }
+  .menu-heading h1 { font-size: 22px; margin-bottom: 4px; }
+  .menu-lede { font-size: 13px; }
+  .eyebrow { font-size: 10.5px; }
+
+  .search-row { padding: 10px 12px; margin-bottom: 14px; }
+  .search-row input { font-size: 14px; }
+
+  .category-tabs { margin-bottom: 16px; }
+  .cat-tab {
+    font-size: 13px;
+    padding: 8px 4px 10px;
+    margin-right: 16px;
+  }
+
+  /* ⬇️ CLAVE: grilla de 2 columnas que entra exacta */
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding-right: 0;
+  }
+
+  /* Tarjetas que respetan el ancho de su columna */
+  .menu-card {
+    padding: 10px;
+    min-height: auto;
+    gap: 8px;
+    border-radius: 14px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .menu-card-media { border-radius: 10px; }
+  .menu-card-name {
+    font-size: 13px;
+    word-break: break-word;
+  }
+  .menu-card-desc {
     font-size: 11px;
-    padding: 3px 10px;
+    min-height: 26px;
+    margin-top: -2px;
+    word-break: break-word;
   }
+  .menu-card-price { font-size: 13px; }
+  .menu-card-add { width: 26px; height: 26px; font-size: 14px; }
+
+  /* Order pane */
+  .order-pane {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .order-head h2 { font-size: 18px; }
+  .mode-btn { font-size: 12.5px; padding: 8px 6px; }
+  .order-items { max-height: 260px; }
+  .sum-total { font-size: 19px; }
+  .pay-btn { padding: 13px; font-size: 14px; }
 }
 
-@media (max-width: 560px){
-  .topbar-inner{ padding: 12px 16px; }
-  .pos-shell{ padding: 20px 16px 40px; }
-  .menu-heading h1{ font-size: 26px; }
-  .menu-grid{ grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); }
-}
+@media (max-width: 420px) {
+  .pos-shell { padding: 12px 10px 30px; }
+  .menu-pane { padding: 14px 10px; }
+  .menu-heading h1 { font-size: 20px; }
+  .menu-lede { font-size: 12.5px; }
 
-@media (max-width: 480px) {
-  .brand-mark {
-    width: 30px;
-    height: 30px;
-    font-size: 15px;
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
-  
-  .brand-name {
-    font-size: 16px;
+  .menu-card {
+    padding: 8px;
+    border-radius: 12px;
   }
-  
-  .topbar-actions {
-    gap: 4px;
-  }
-  
-  .theme-toggle-track {
-    width: 40px;
-    height: 22px;
-  }
-  
-  .theme-toggle-thumb {
-    width: 16px;
-    height: 16px;
-  }
-  
-  [data-theme="light"] .theme-toggle-thumb {
-    transform: translateX(18px);
-  }
+  .menu-card-name { font-size: 12px; }
+  .menu-card-desc { font-size: 10.5px; min-height: 22px; }
+  .menu-card-price { font-size: 12px; }
+  .menu-card-add { width: 24px; height: 24px; font-size: 13px; }
+
+  /* Theme toggle más chico */
+  .theme-toggle-track { width: 40px; height: 22px; }
+  .theme-toggle-thumb { width: 16px; height: 16px; }
+  [data-theme="light"] .theme-toggle-thumb { transform: translateX(18px); }
 }
 
 @media (prefers-reduced-motion: reduce){
