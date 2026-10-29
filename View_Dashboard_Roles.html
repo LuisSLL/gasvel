@@ -2,9 +2,6 @@
 <div class="content-header p-0 mb-3">
   <div class="container-fluid d-flex justify-content-between align-items-center">
     <h1 class="page-title m-0">Gestión de Roles</h1>
-    <button type="button" class="btn btn-navy" data-toggle="modal" data-target="#modalCrearRol">
-      <i class="fas fa-plus mr-1"></i> Crear Rol
-    </button>
   </div>
 </div>
 
@@ -19,24 +16,42 @@
               <th>Nombre</th>
               <th>Descripción</th>
               <th>Usuarios</th>
+              <th>Permisos</th>
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="rolesTbody">
             <? if (roles && roles.length > 0) { ?>
               <? for (var i = 0; i < roles.length; i++) { ?>
-                <? var esBase = [1,2,3,4].indexOf(parseInt(roles[i].rol_id)) !== -1; ?>
-                <tr>
-                  <td><?= roles[i].rol_id ?></td>
-                  <td><?= roles[i].nombre ?></td>
-                  <td><?= roles[i].descripcion || '' ?></td>
-                  <td><span class="badge badge-info"><?= roles[i].total_usuarios ?></span></td>
-                  <td class="text-center">
-                    <button class="btn btn-sm btn-warning" onclick="openEditRolModal(<?= roles[i].rol_id ?>)" title="Editar">
+
+                <? var rolIdStr = String(roles[i].rol_id).trim().toLowerCase(); ?>
+                <? var rolesBase = ['admin', 'mozo', 'cocina', 'cliente', 'totem']; ?>
+                <? var esBase = rolesBase.indexOf(rolIdStr) !== -1; ?>
+                <? var permisosArr = (roles[i].permisos || '').split(',').map(function(p){return p.trim();}).filter(function(p){return p;}); ?>
+
+                <tr id="rol-row-<?= roles[i].rol_id ?>">
+                  <td class="rol-id"><?= roles[i].rol_id ?></td>
+                  <td class="rol-nombre"><?= roles[i].nombre ?></td>
+                  <td class="rol-desc"><?= roles[i].descripcion || '' ?></td>
+                  <td><span class="badge badge-info rol-usuarios"><?= roles[i].total_usuarios ?></span></td>
+                  <td class="rol-permisos">
+                    <? if (permisosArr.length === 0) { ?>
+                      <span class="text-muted small">Sin permisos</span>
+                    <? } else { ?>
+                      <? for (var j = 0; j < permisosArr.length; j++) { ?>
+                        <span class="badge badge-permiso"><?= permisosArr[j] ?></span>
+                      <? } ?>
+                    <? } ?>
+                  </td>
+                  <td class="text-center rol-acciones">
+                    <button class="btn btn-sm btn-info" onclick="openPermisosModal('<?= roles[i].rol_id ?>')" title="Editar permisos">
+                      <i class="fas fa-sliders-h"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="openEditRolModal('<?= roles[i].rol_id ?>')" title="Editar">
                       <i class="fas fa-edit"></i>
                     </button>
                     <? if (!esBase) { ?>
-                      <button class="btn btn-sm btn-danger" onclick="confirmDeleteRol(<?= roles[i].rol_id ?>)" title="Eliminar">
+                      <button class="btn btn-sm btn-danger" onclick="confirmDeleteRol('<?= roles[i].rol_id ?>')" title="Eliminar">
                         <i class="fas fa-trash"></i>
                       </button>
                     <? } ?>
@@ -51,32 +66,32 @@
   </div>
 </section>
 
-<!-- MODAL CREAR ROL -->
-<div class="modal fade" id="modalCrearRol" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" role="document">
+<!-- MODAL PERMISOS -->
+<div class="modal fade" id="modalPermisos" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header" style="background: var(--accent); color: white;">
-        <h5 class="modal-title"><i class="fas fa-plus mr-2"></i>Crear Rol</h5>
+        <h5 class="modal-title">
+          <i class="fas fa-sliders-h mr-2"></i>
+          Permisos del rol: <span id="permisos_rol_nombre"></span>
+        </h5>
         <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form id="formCrearRol" onsubmit="guardarRol(event)">
-        <div class="modal-body">
-          <div class="form-group">
-            <label>Nombre</label>
-            <input type="text" id="create_rol_nombre" class="form-control" placeholder="Ej: SUPERVISOR" required>
-          </div>
-          <div class="form-group">
-            <label>Descripción</label>
-            <input type="text" id="create_rol_desc" class="form-control" placeholder="Descripción opcional">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-navy">Crear</button>
-        </div>
-      </form>
+      <div class="modal-body">
+        <input type="hidden" id="permisos_rol_id">
+        <p class="text-muted small mb-3">
+          Activá las vistas que este rol puede ver. Los cambios se aplican al instante.
+        </p>
+        <div id="permisos_lista" class="permisos-lista"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-navy" onclick="guardarPermisos()">
+          <i class="fas fa-save mr-1"></i> Guardar permisos
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -95,6 +110,10 @@
         <div class="modal-body">
           <input type="hidden" id="edit_rol_id">
           <div class="form-group">
+            <label>Identificador (no editable)</label>
+            <input type="text" id="edit_rol_id_visible" class="form-control" disabled>
+          </div>
+          <div class="form-group">
             <label>Nombre</label>
             <input type="text" id="edit_rol_nombre" class="form-control" required>
           </div>
@@ -112,15 +131,255 @@
   </div>
 </div>
 
+<!-- CSS DEL SWITCH -->
+<style>
+  .badge-permiso {
+    background: rgba(255, 138, 61, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(255, 138, 61, 0.3);
+    margin: 2px 4px 2px 0;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .permisos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .permiso-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.03);
+    transition: background 0.15s;
+  }
+
+  body[data-theme="dark"] .permiso-item {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .permiso-item:hover { background: rgba(0, 0, 0, 0.06); }
+  body[data-theme="dark"] .permiso-item:hover { background: rgba(255, 255, 255, 0.06); }
+
+  .permiso-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  .permiso-label i { color: var(--accent); width: 18px; text-align: center; }
+
+  .switch { position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #cbd5e0; transition: .3s; border-radius: 28px;
+  }
+  .slider:before {
+    position: absolute; content: "";
+    height: 22px; width: 22px; left: 3px; bottom: 3px;
+    background-color: white; transition: .3s; border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .switch input:checked + .slider { background-color: #28a745; }
+  .switch input:checked + .slider:before { transform: translateX(24px); }
+  .switch input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
+</style>
+
 <script>
   var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
   var __rolesData = <?!= json_encode(roles) ?>;
 
+  var PERMISOS_DISPONIBLES = [
+    { key: 'pedidos',       label: 'Pedidos',       icon: 'fa-shopping-bag' },
+    { key: 'mesas',         label: 'Mesas',         icon: 'fa-chair' },
+    { key: 'productos',     label: 'Productos',     icon: 'fa-utensils' },
+    { key: 'categorias',    label: 'Categorías',    icon: 'fa-tags' },
+    { key: 'usuarios',      label: 'Usuarios',      icon: 'fa-users' },
+    { key: 'roles',         label: 'Roles',         icon: 'fa-user-shield' },
+    { key: 'caja',          label: 'Caja',          icon: 'fa-cash-register' },
+    { key: 'archivo',       label: 'Archivo',       icon: 'fa-archive' },
+    { key: 'facturacion',   label: 'Facturación',   icon: 'fa-receipt' },
+    { key: 'configuracion', label: 'Configuración', icon: 'fa-cog' }
+  ];
+
+  var ROLES_BASE = ['admin', 'mozo', 'cocina', 'cliente', 'totem'];
+
+  // ==========================================
+  // HELPERS DE RENDER EN VIVO
+  // ==========================================
+
+  function renderPermisosBadges(permisosStr) {
+    var arr = String(permisosStr || '')
+      .split(',')
+      .map(function(p) { return p.trim(); })
+      .filter(function(p) { return p; });
+
+    if (arr.length === 0) {
+      return '<span class="text-muted small">Sin permisos</span>';
+    }
+    return arr.map(function(p) {
+      return '<span class="badge badge-permiso">' + p + '</span>';
+    }).join('');
+  }
+
+  function actualizarFilaRol(rolId, data) {
+    var tr = document.getElementById('rol-row-' + rolId);
+    if (!tr) return;
+
+    if (data.nombre !== undefined) {
+      tr.querySelector('.rol-nombre').textContent = data.nombre;
+    }
+    if (data.descripcion !== undefined) {
+      tr.querySelector('.rol-desc').textContent = data.descripcion || '';
+    }
+    if (data.permisos !== undefined) {
+      tr.querySelector('.rol-permisos').innerHTML = renderPermisosBadges(data.permisos);
+    }
+
+    // Actualizar el caché local __rolesData
+    var idx = __rolesData.findIndex(function(r) {
+      return String(r.rol_id).toLowerCase() === String(rolId).toLowerCase();
+    });
+    if (idx !== -1) {
+      if (data.nombre !== undefined) __rolesData[idx].nombre = data.nombre;
+      if (data.descripcion !== undefined) __rolesData[idx].descripcion = data.descripcion;
+      if (data.permisos !== undefined) __rolesData[idx].permisos = data.permisos;
+    }
+  }
+
+  // ==========================================
+  // MODAL DE PERMISOS
+  // ==========================================
+
+  window.openPermisosModal = function(rolId) {
+    var rol = __rolesData.find(function(r) {
+      return String(r.rol_id).trim().toLowerCase() === String(rolId).trim().toLowerCase();
+    });
+
+    if (!rol) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Rol no encontrado' });
+      return;
+    }
+
+    document.getElementById('permisos_rol_id').value = rol.rol_id;
+    document.getElementById('permisos_rol_nombre').textContent = rol.nombre;
+
+    var permisosActuales = String(rol.permisos || '')
+      .split(',')
+      .map(function(p) { return p.trim().toLowerCase(); })
+      .filter(function(p) { return p; });
+
+    var esAdmin = (String(rol.rol_id).trim().toLowerCase() === 'admin');
+
+    var html = '';
+    PERMISOS_DISPONIBLES.forEach(function(p) {
+      var activo = permisosActuales.indexOf(p.key) !== -1 || esAdmin;
+      var disabled = esAdmin ? 'disabled' : '';
+
+      html +=
+        '<div class="permiso-item">' +
+          '<span class="permiso-label">' +
+            '<i class="fas ' + p.icon + '"></i>' + p.label +
+          '</span>' +
+          '<label class="switch">' +
+            '<input type="checkbox" data-permiso="' + p.key + '" ' +
+              (activo ? 'checked' : '') + ' ' + disabled + '>' +
+            '<span class="slider"></span>' +
+          '</label>' +
+        '</div>';
+    });
+
+    if (esAdmin) {
+      html = '<div class="alert alert-info small mb-3">' +
+        '<i class="fas fa-info-circle mr-1"></i> El rol <strong>Admin</strong> tiene todos los permisos por defecto y no pueden modificarse.' +
+      '</div>' + html;
+    }
+
+    document.getElementById('permisos_lista').innerHTML = html;
+    $('#modalPermisos').modal('show');
+  };
+
+  window.guardarPermisos = function() {
+    var rolId = document.getElementById('permisos_rol_id').value;
+
+    if (rolId === 'admin') {
+      $('#modalPermisos').modal('hide');
+      return;
+    }
+
+    var checks = document.querySelectorAll('#permisos_lista input[data-permiso]');
+    var permisos = [];
+    checks.forEach(function(c) {
+      if (c.checked) permisos.push(c.getAttribute('data-permiso'));
+    });
+
+    var btn = document.querySelector('#modalPermisos .btn-navy');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+
+    var permisosFinales = permisos.join(',');
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
+        if (data.success) {
+          $('#modalPermisos').modal('hide');
+
+          // 🔥 ACTUALIZACIÓN EN VIVO — sin recargar
+          actualizarFilaRol(rolId, { permisos: permisosFinales });
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Permisos guardados!',
+            timer: 1200,
+            showConfirmButton: false
+          });
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+        }
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
+      .updatePermisosRol({ rol_id: rolId, permisos: permisosFinales });
+  };
+
+  // ==========================================
+  // MODAL EDITAR
+  // ==========================================
+
   window.openEditRolModal = function(rolId) {
-    var rol = __rolesData.find(function(r) { return String(r.rol_id) === String(rolId); });
+    var rol = __rolesData.find(function(r) {
+      return String(r.rol_id).trim().toLowerCase() === String(rolId).trim().toLowerCase();
+    });
 
     if (rol) {
       document.getElementById('edit_rol_id').value = rol.rol_id;
+      document.getElementById('edit_rol_id_visible').value = rol.rol_id;
       document.getElementById('edit_rol_nombre').value = rol.nombre || '';
       document.getElementById('edit_rol_desc').value = rol.descripcion || '';
       $('#modalEditarRol').modal('show');
@@ -129,29 +388,14 @@
     }
   };
 
-  window.guardarRol = function(event) {
-    event.preventDefault();
-    var payload = {
-      nombre: document.getElementById('create_rol_nombre').value,
-      descripcion: document.getElementById('create_rol_desc').value
-    };
-
-    google.script.run
-      .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
-        if (data.success) {
-          $('#modalCrearRol').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Rol creado!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/roles';
-        } else {
-          Swal.fire({ icon: 'error', title: 'Error', text: data.message });
-        }
-      })
-      .createRol(payload);
-  };
-
   window.actualizarRol = function(event) {
     event.preventDefault();
+
+    var btn = document.querySelector('#formEditarRol button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+
     var payload = {
       rol_id: document.getElementById('edit_rol_id').value,
       nombre: document.getElementById('edit_rol_nombre').value,
@@ -160,39 +404,95 @@
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalEditarRol').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Rol actualizado!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/roles';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO — sin recargar
+          actualizarFilaRol(payload.rol_id, {
+            nombre: payload.nombre.toUpperCase(),
+            descripcion: payload.descripcion
+          });
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Rol actualizado!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+      })
       .updateRol(payload);
   };
+
+  // ==========================================
+  // ELIMINAR
+  // ==========================================
 
   window.confirmDeleteRol = function(rolId) {
     Swal.fire({
       title: '¿Eliminar este rol?',
       showCancelButton: true,
       confirmButtonColor: '#E2572B',
-      confirmButtonText: 'Sí, eliminar'
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
     }).then(function(result) {
       if (result.isConfirmed) {
         google.script.run
           .withSuccessHandler(function(response) {
-            var data = JSON.parse(response);
+            var data;
+            try {
+              data = (typeof response === 'string') ? JSON.parse(response) : response;
+            } catch (e) {
+              data = { success: false, message: 'Respuesta inválida' };
+            }
+
             if (data.success) {
-              Swal.fire({ icon: 'success', title: '¡Rol eliminado!', timer: 2000 });
-              window.top.location.href = baseUrl + '?p=dashboard/roles';
+              // 🔥 ELIMINAR LA FILA EN VIVO — sin recargar
+              var tr = document.getElementById('rol-row-' + rolId);
+              if (tr) {
+                tr.style.transition = 'opacity 0.3s ease';
+                tr.style.opacity = '0';
+                setTimeout(function() {
+                  tr.remove();
+                  // Actualizar el caché local
+                  __rolesData = __rolesData.filter(function(r) {
+                    return String(r.rol_id).toLowerCase() !== String(rolId).toLowerCase();
+                  });
+                }, 300);
+              }
+
+              Swal.fire({
+                icon: 'success',
+                title: '¡Rol eliminado!',
+                timer: 1200,
+                showConfirmButton: false
+              });
             } else {
               Swal.fire({ icon: 'error', title: 'Error', text: data.message });
             }
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
           })
           .deleteRol({ rol_id: rolId });
       }
     });
   };
 </script>
-
