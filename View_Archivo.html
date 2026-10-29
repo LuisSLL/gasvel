@@ -1,0 +1,112 @@
+<!-- View_Archivo.html -->
+<div class="content-header p-0 mb-3">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <h1 class="page-title m-0">Archivo de Pedidos</h1>
+  </div>
+</div>
+
+<section class="content">
+  <div class="container-fluid">
+
+    <!-- ESTADO -->
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card card-outline card-navy">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-database mr-2"></i>Estado actual</h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-6">
+                <div class="info-box">
+                  <span class="info-box-icon bg-navy"><i class="fas fa-receipt"></i></span>
+                  <div class="info-box-content">
+                    <span class="info-box-text">Pedidos activos</span>
+                    <span class="info-box-number"><?= estado.filas_pedidos ?></span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="info-box">
+                  <span class="info-box-icon bg-navy"><i class="fas fa-list"></i></span>
+                  <div class="info-box-content">
+                    <span class="info-box-text">Items activos</span>
+                    <span class="info-box-number"><?= estado.filas_items ?></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p class="mb-1">
+              <strong>Último archivado:</strong>
+              <span id="ultimoArchivado"><?= estado.ultimo_archivado ?></span>
+            </p>
+            <p class="mb-1">
+              <strong>Próximo corte:</strong> pedidos anteriores al
+              <span><?= estado.corte_proximo ?></span>
+            </p>
+            <? if (estado.archivo_url) { ?>
+              <p class="mb-0">
+                <a href="<?= estado.archivo_url ?>" target="_blank" class="btn btn-sm btn-outline-navy mt-2">
+                  <i class="fas fa-external-link-alt mr-1"></i> Abrir SS de archivo
+                </a>
+              </p>
+            <? } ?>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACCIÓN ARCHIVAR -->
+      <div class="col-md-6">
+        <div class="card card-outline card-success">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-archive mr-2"></i>Archivar mes</h3>
+          </div>
+          <div class="card-body">
+            <p>
+              Mueve los pedidos <strong>anteriores al mes actual</strong> a un
+              Spreadsheet de archivo en Drive y los borra del principal.
+              <br><small class="text-muted">Los pedidos archivados quedan accesibles abriendo el SS de archivo.</small>
+            </p>
+            <? if (estado.hay_pedidos_viejos) { ?>
+              <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle mr-1"></i>
+                Hay <strong><?= estado.cantidad_a_archivar ?></strong> pedidos para archivar.
+              </div>
+              <button type="button" id="btnArchivar" class="btn btn-success">
+                <i class="fas fa-archive mr-1"></i> Archivar ahora
+              </button>
+            <? } else { ?>
+              <div class="alert alert-secondary mb-0">
+                <i class="fas fa-check mr-1"></i> No hay pedidos anteriores al mes actual.
+              </div>
+            <? } ?>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA PELIGROSA -->
+    <div class="row">
+      <div class="col-12">
+        <div class="card card-outline card-danger">
+          <div class="card-header">
+            <h3 class="card-title text-danger">
+              <i class="fas fa-exclamation-triangle mr-2"></i>Zona peligrosa
+            </h3>
+          </div>
+          <div class="card-body">
+            <p class="mb-2">
+              Borra <strong>todos</strong> los pedidos y items del sistema.
+              <strong>No guarda respaldo. No se puede deshacer.</strong>
+            </p>
+            <button type="button" id="btnBorrarTodo" class="btn btn-danger">
+              <i class="fas fa-trash mr-1"></i> Borrar TODOS los pedidos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
