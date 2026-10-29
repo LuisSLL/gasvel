@@ -22,20 +22,20 @@
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="pedidosTbody">
             <? if (pedidos && pedidos.length > 0) { ?>
               <? for (var i = 0; i < pedidos.length; i++) { ?>
                 <? var p = pedidos[i]; ?>
                 <? var cerrado = (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO'); ?>
                 <? var badgeClass = { PENDIENTE: 'badge-secondary', EN_PREPARACION: 'badge-warning', LISTO: 'badge-info', ENTREGADO: 'badge-success', CANCELADO: 'badge-danger' }[p.estado] || 'badge-secondary'; ?>
-                <tr>
-                  <td><strong><?= p.numero_pedido ?></strong></td>
-                  <td><?= formatDate(p.fecha) ?></td>
-                  <td><?= p.tipo ?></td>
-                  <td><?= p.mesa_num ? ('#' + p.mesa_num) : '-' ?></td>
-                  <td><?= p.items ? p.items.length : 0 ?></td>
-                  <td><?= formatCurrency(p.total) ?></td>
-                  <td>
+                <tr id="ped-row-<?= p.pedido_id ?>">
+                  <td><strong class="ped-numero"><?= p.numero_pedido ?></strong></td>
+                  <td class="ped-fecha"><?= formatDate(p.fecha) ?></td>
+                  <td class="ped-tipo"><?= p.tipo ?></td>
+                  <td class="ped-mesa"><?= p.mesa_num ? ('#' + p.mesa_num) : '-' ?></td>
+                  <td class="ped-items-count"><?= p.items ? p.items.length : 0 ?></td>
+                  <td class="ped-total"><?= formatCurrency(p.total) ?></td>
+                  <td class="ped-estado">
                     <? if (!cerrado) { ?>
                       <select class="form-control form-control-sm d-inline-block w-auto" onchange="cambiarEstadoPedido(<?= p.pedido_id ?>, this.value)">
                         <? for (var j = 0; j < estados.length; j++) { ?>
@@ -112,16 +112,120 @@
 
 <script>
   var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
+  var __pedidosData = <?!= json_encode(pedidos) ?>;
+  var __estadosPedido = <?!= json_encode(estados) ?>;
+
+  var ESTADO_BADGE = {
+    PENDIENTE:      'badge-secondary',
+    EN_PREPARACION: 'badge-warning',
+    LISTO:          'badge-info',
+    ENTREGADO:      'badge-success',
+    CANCELADO:      'badge-danger'
+  };
+
+  function formatCurrencyJS(amount) {
+    if (amount === undefined || amount === null) return '$ 0.00';
+    return '$ ' + parseFloat(amount).toFixed(2);
+  }
+
+  function esCerrado(estado) {
+    return estado === 'ENTREGADO' || estado === 'CANCELADO';
+  }
+
+  // ==========================================
+  // HELPERS DE RENDER EN VIVO
+  // ==========================================
+
+  function renderOpcionesEstadoPedido(estadoActual) {
+    return __estadosPedido.map(function(e) {
+      return '<option value="' + e + '" ' + (e === estadoActual ? 'selected' : '') + '>' + e + '</option>';
+    }).join('');
+  }
+
+  function renderCeldaEstadoPedido(pedidoId, estado) {
+    if (esCerrado(estado)) {
+      var badgeClass = ESTADO_BADGE[estado] || 'badge-secondary';
+      return '<span class="badge ' + badgeClass + '">' + estado + '</span>';
+    }
+    return '<select class="form-control form-control-sm d-inline-block w-auto" onchange="cambiarEstadoPedido(' + pedidoId + ', this.value)">' +
+      renderOpcionesEstadoPedido(estado) +
+    '</select>';
+  }
+
+  function actualizarFilaPedido(pedidoId, data) {
+    var tr = document.getElementById('ped-row-' + pedidoId);
+    if (!tr) return;
+
+    if (data.items_count !== undefined) {
+      tr.querySelector('.ped-items-count').textContent = data.items_count;
+    }
+    if (data.total !== undefined) {
+      tr.querySelector('.ped-total').textContent = formatCurrencyJS(data.total);
+    }
+    if (data.estado !== undefined) {
+      var celda = tr.querySelector('.ped-estado');
+      if (celda) {
+        celda.innerHTML = renderCeldaEstadoPedido(pedidoId, data.estado);
+      }
+    }
+
+    // Actualizar caché
+    var idx = __pedidosData.findIndex(function(p) {
+      return String(p.pedido_id) === String(pedidoId);
+    });
+    if (idx !== -1) {
+      if (data.total !== undefined) __pedidosData[idx].total = data.total;
+      if (data.estado !== undefined) __pedidosData[idx].estado = data.estado;
+      if (data.items_count !== undefined) {
+        // No tocamos el array de items, solo contamos por si acaso
+      }
+    }
+  }
+
+  function eliminarFilaPedido(pedidoId) {
+    var tr = document.getElementById('ped-row-' + pedidoId);
+    if (!tr) return;
+
+    tr.style.transition = 'opacity .3s ease';
+    tr.style.opacity = '0';
+    setTimeout(function() {
+      tr.remove();
+      __pedidosData = __pedidosData.filter(function(p) {
+        return String(p.pedido_id) !== String(pedidoId);
+      });
+    }, 300);
+  }
+
+  // ==========================================
+  // VER DETALLE
+  // ==========================================
   window.verDetallePedido = function(pedidoId) {
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
         if (!data.success || !data.pedido) {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message || 'No se pudo cargar el pedido' });
           return;
         }
 
         var p = data.pedido;
+
+        // Actualizar caché con el pedido completo
+        var idx = __pedidosData.findIndex(function(x) {
+          return String(x.pedido_id) === String(p.pedido_id);
+        });
+        if (idx !== -1) {
+          __pedidosData[idx] = Object.assign({}, __pedidosData[idx], p);
+        } else {
+          __pedidosData.push(p);
+        }
+
         document.getElementById('det_numero').textContent = '#' + p.numero_pedido;
         document.getElementById('det_tipo').textContent = p.tipo;
         document.getElementById('det_mesa').textContent = p.mesa_num ? ('Mesa #' + p.mesa_num) : 'N/A';
@@ -131,12 +235,13 @@
         document.getElementById('det_total').textContent = formatCurrencyJS(p.total);
         document.getElementById('det_observaciones').textContent = p.observaciones ? ('Observaciones: ' + p.observaciones) : '';
 
-        var cerrado = (p.estado === 'ENTREGADO' || p.estado === 'CANCELADO');
+        var cerrado = esCerrado(p.estado);
         var body = document.getElementById('det_items_body');
         body.innerHTML = '';
 
         (p.items || []).forEach(function(item) {
           var tr = document.createElement('tr');
+          tr.setAttribute('data-item-id', item.item_id);
           tr.innerHTML =
             '<td>' + item.nombre_producto + '</td>' +
             '<td>' + item.cantidad + '</td>' +
@@ -157,62 +262,155 @@
       .getPedidoById({ pedido_id: pedidoId });
   };
 
+  // ==========================================
+  // QUITAR ITEM (en vivo)
+  // ==========================================
   window.quitarItemPedido = function(itemId, pedidoId) {
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
         if (data.success) {
-          verDetallePedido(pedidoId);
-          Swal.fire({ icon: 'success', title: data.message, timer: 1200, showConfirmButton: false });
+          // 🔥 1. Quitar la fila del item en el modal (sin recargar todo)
+          var tr = document.querySelector('#det_items_body tr[data-item-id="' + itemId + '"]');
+          if (tr) {
+            tr.style.transition = 'opacity .2s ease';
+            tr.style.opacity = '0';
+            setTimeout(function() { tr.remove(); }, 200);
+          }
+
+          // 🔥 2. Actualizar el total del modal
+          if (data.total !== undefined) {
+            document.getElementById('det_total').textContent = formatCurrencyJS(data.total);
+          }
+
+          // 🔥 3. Actualizar la fila del pedido padre (total + count items)
+          var pedidoRow = document.getElementById('ped-row-' + pedidoId);
+          if (pedidoRow) {
+            var itemsCountCell = pedidoRow.querySelector('.ped-items-count');
+            if (itemsCountCell) {
+              var actual = parseInt(itemsCountCell.textContent, 10) || 0;
+              itemsCountCell.textContent = Math.max(0, actual - 1);
+            }
+            if (data.total !== undefined) {
+              pedidoRow.querySelector('.ped-total').textContent = formatCurrencyJS(data.total);
+            }
+          }
+
+          // 🔥 4. Actualizar caché
+          var idx = __pedidosData.findIndex(function(p) {
+            return String(p.pedido_id) === String(pedidoId);
+          });
+          if (idx !== -1) {
+            if (__pedidosData[idx].items) {
+              __pedidosData[idx].items = __pedidosData[idx].items.filter(function(it) {
+                return String(it.item_id) !== String(itemId);
+              });
+            }
+            if (data.total !== undefined) __pedidosData[idx].total = data.total;
+          }
+
+          Swal.fire({ icon: 'success', title: data.message, timer: 1000, showConfirmButton: false });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
+      })
+      .withFailureHandler(function(err) {
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .removePedidoItem({ item_id: itemId });
   };
 
+  // ==========================================
+  // CAMBIAR ESTADO (en vivo)
+  // ==========================================
   window.cambiarEstadoPedido = function(pedidoId, nuevoEstado) {
+    var tr = document.getElementById('ped-row-' + pedidoId);
+    var celda = tr ? tr.querySelector('.ped-estado') : null;
+    var select = celda ? celda.querySelector('select') : null;
+    var estadoAnterior = select ? select.getAttribute('data-prev') || select.value : null;
+
+    if (select) select.setAttribute('data-prev', nuevoEstado);
+
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
         if (data.success) {
-          Swal.fire({ icon: 'success', title: data.message, timer: 1500, showConfirmButton: false });
-          window.top.location.href = baseUrl + '?p=dashboard/pedidos';
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          actualizarFilaPedido(pedidoId, { estado: data.estado || nuevoEstado });
+
+          Swal.fire({
+            icon: 'success',
+            title: data.message || 'Estado actualizado',
+            timer: 1000,
+            showConfirmButton: false
+          });
         } else {
+          // Revertir el select al estado anterior
+          if (select && estadoAnterior) select.value = estadoAnterior;
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
+      })
+      .withFailureHandler(function(err) {
+        if (select && estadoAnterior) select.value = estadoAnterior;
+        Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .updatePedidoEstado({ pedido_id: pedidoId, estado: nuevoEstado });
   };
 
+  // ==========================================
+  // ELIMINAR PEDIDO (en vivo)
+  // ==========================================
   window.confirmDeletePedido = function(pedidoId) {
     Swal.fire({
       title: '¿Eliminar este pedido?',
       text: 'Se eliminarán también todos sus productos asociados.',
+      icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#E2572B',
-      confirmButtonText: 'Sí, eliminar'
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
     }).then(function(result) {
-      if (result.isConfirmed) {
-        google.script.run
-          .withSuccessHandler(function(response) {
-            var data = JSON.parse(response);
-            if (data.success) {
-              Swal.fire({ icon: 'success', title: '¡Pedido eliminado!', timer: 2000 });
-              window.top.location.href = baseUrl + '?p=dashboard/pedidos';
-            } else {
-              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
-            }
-          })
-          .deletePedido({ pedido_id: pedidoId });
-      }
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            // 🔥 ELIMINACIÓN EN VIVO
+            eliminarFilaPedido(pedidoId);
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Pedido eliminado!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .deletePedido({ pedido_id: pedidoId });
     });
   };
-
-  function formatCurrencyJS(amount) {
-    if (amount === undefined || amount === null) return '$ 0.00';
-    return '$ ' + parseFloat(amount).toFixed(2);
-  }
 </script>
-
-
