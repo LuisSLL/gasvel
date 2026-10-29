@@ -37,33 +37,33 @@ var Router = {
     try {
       if (!e) e = { parameter: {} };
       if (!e.parameter) e.parameter = {};
-      
+
       var routePath = e.parameter.p || e.parameter.route || 'home';
       Logger.log('🔍 Router: ' + method + ' ' + routePath);
-      
+
       var target = Route.find(routePath, method);
       var params = {};
-      
+
       if (!target) {
         var result = Route.findWithParams(routePath, method);
         if (result) { target = result.target; params = result.params; }
       }
-      
+
       if (!target) {
         Logger.log('⚠️ Ruta no encontrada: ' + routePath);
         return HtmlService.createHtmlOutput('<h1>404 - Página no encontrada</h1><a href="?p=home">Volver</a>');
       }
-      
+
       var parts = target.split('@');
       var controllerName = parts[0];
       var methodName = parts[1];
-      
+
       var controllerClass = globalThis['Ctrl_' + controllerName];
       if (!controllerClass) {
         return HtmlService.createHtmlOutput('<h1>Error: Controlador no encontrado</h1>');
       }
-      
-      // 🆕 CORRECCIÓN DEFINITIVA: Si es una clase (typeof function), usamos new.
+
+      // Si es una clase (typeof function), usamos new.
       // Si es un objeto literal, usamos Object.create.
       var instance;
       if (typeof controllerClass === 'function') {
@@ -71,25 +71,25 @@ var Router = {
       } else {
         instance = Object.create(controllerClass);
       }
-      
+
       if (typeof instance[methodName] !== 'function') {
         return HtmlService.createHtmlOutput('<h1>Error: Método no encontrado</h1>');
       }
-      
+
       var allParams = {};
       for (var key in params) allParams[key] = params[key];
       for (var key in e.parameter) allParams[key] = e.parameter[key];
-      
+
       var result = instance[methodName](allParams);
-      
+
       if (result && typeof result.getContent === 'function') return result;
       if (typeof result === 'string') return HtmlService.createHtmlOutput(result);
       if (typeof result === 'object') {
         return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
       }
-      
+
       return HtmlService.createHtmlOutput(String(result));
-      
+
     } catch (error) {
       Logger.log('❌ Error: ' + error.message);
       return HtmlService.createHtmlOutput('<h1>Error: ' + error.message + '</h1>');
@@ -116,12 +116,64 @@ Route.post('dashboard/crear', 'Auth@createUser');
 Route.get('logout', 'Auth@logout');
 
 // ==========================================
-// ✅ RUTAS DE CATEGORÍAS (AGREGADAS)
+// ✅ RUTAS DE CATEGORÍAS
 // ==========================================
 Route.get('dashboard/categorias', 'Categorias@index');
 Route.post('categorias/crear', 'Categorias@create');
 Route.post('categorias/editar', 'Categorias@update');
 Route.post('categorias/eliminar', 'Categorias@delete');
+
+// ==========================================
+// ✅ RUTAS DE PRODUCTOS
+// ==========================================
+Route.get('dashboard/productos', 'Productos@index');
+Route.post('productos/crear', 'Productos@create');
+Route.post('productos/editar', 'Productos@update');
+Route.post('productos/estado', 'Productos@toggleActivo');
+Route.post('productos/eliminar', 'Productos@delete');
+
+// ==========================================
+// ✅ RUTAS DE ROLES
+// ==========================================
+Route.get('dashboard/roles', 'Roles@index');
+Route.post('roles/crear', 'Roles@create');
+Route.post('roles/editar', 'Roles@update');
+Route.post('roles/eliminar', 'Roles@delete');
+
+// ==========================================
+// ✅ RUTAS DE MESAS
+// ==========================================
+Route.get('dashboard/mesas', 'Mesas@index');
+Route.post('mesas/crear', 'Mesas@create');
+Route.post('mesas/editar', 'Mesas@update');
+Route.post('mesas/estado', 'Mesas@setEstado');
+Route.post('mesas/eliminar', 'Mesas@delete');
+
+// ==========================================
+// ✅ RUTAS DE PEDIDOS (Y PEDIDO_ITEMS)
+// ==========================================
+Route.get('dashboard/pedidos', 'Pedidos@index');
+Route.get('pedidos/ticket', 'Pedidos@ticket');
+Route.get('pedidos/:id', 'Pedidos@getById');
+Route.post('pedidos/crear', 'Pedidos@create');
+Route.post('pedidos/estado', 'Pedidos@updateEstado');
+Route.post('pedidos/eliminar', 'Pedidos@delete');
+Route.post('pedidos/items/agregar', 'Pedidos@addItem');
+Route.post('pedidos/items/eliminar', 'Pedidos@removeItem');
+
+// ==========================================
+// 🆕 RUTAS DE CAJA
+// ==========================================
+// La vista principal del módulo.
+// Las acciones (abrir, cerrar, movimientos) van por google.script.run.
+Route.get('dashboard/caja', 'Caja@index');
+
+// ==========================================
+// 🆕 RUTAS DE ARCHIVO
+// ==========================================
+Route.get('dashboard/archivo', 'Archivo@showArchivo');
+// Las acciones se llaman vía google.script.run (archivarMes, borrarTodo,
+// getEstadoArchivado) directamente al controlador, no necesitan ruta.
 
 globalThis.Route = Route;
 globalThis.Router = Router;
