@@ -1,0 +1,141 @@
+<!-- JS_Archivo.html -->
+<script>
+  (function() {
+
+    // ==========================================
+    // ARCHIVAR MES
+    // ==========================================
+    var btnArchivar = document.getElementById('btnArchivar');
+    if (btnArchivar) {
+      btnArchivar.addEventListener('click', function() {
+        Swal.fire({
+          title: '¿Archivar pedidos viejos?',
+          html: 'Se moverán los pedidos anteriores al mes actual a un Spreadsheet de archivo. Se borrarán del principal.',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonColor: '#28a745',
+          cancelButtonColor: '#6c757d',
+          confirmButtonText: 'Sí, archivar',
+          cancelButtonText: 'Cancelar'
+        }).then(function(result) {
+          if (!result.isConfirmed) return;
+
+          btnArchivar.disabled = true;
+          btnArchivar.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Archivando...';
+
+          Swal.fire({
+            title: 'Archivando...',
+            html: 'No cierres esta pestaña.',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: function() { Swal.showLoading(); }
+          });
+
+          google.script.run
+            .withSuccessHandler(function(resp) {
+              Swal.close();
+              var data;
+              try { data = JSON.parse(resp); } catch (e) { data = { success: false, message: 'Respuesta inválida.' }; }
+
+              btnArchivar.disabled = false;
+              btnArchivar.innerHTML = '<i class="fas fa-archive mr-1"></i> Archivar ahora';
+
+              if (data && data.success) {
+                Swal.fire({
+                  icon: 'success',
+                  title: '¡Archivado!',
+                  html: data.message +
+                        (data.archivo_url ? '<br><br><a href="' + data.archivo_url + '" target="_blank">Abrir SS de archivo</a>' : ''),
+                  confirmButtonText: 'OK'
+                }).then(function() {
+                  window.top.location.reload();
+                });
+              } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: (data && data.message) || 'No se pudo archivar.' });
+              }
+            })
+            .withFailureHandler(function(err) {
+              Swal.close();
+              btnArchivar.disabled = false;
+              btnArchivar.innerHTML = '<i class="fas fa-archive mr-1"></i> Archivar ahora';
+              Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+            })
+            .archivarMes();
+        });
+      });
+    }
+
+    // ==========================================
+    // BORRAR TODO
+    // ==========================================
+    var btnBorrar = document.getElementById('btnBorrarTodo');
+    if (btnBorrar) {
+      btnBorrar.addEventListener('click', function() {
+        Swal.fire({
+          title: '⚠️ ¿Borrar TODO?',
+          html: 'Se borrarán <strong>todos</strong> los pedidos y items.<br>' +
+                '<strong>Esta acción no se puede deshacer.</strong><br><br>' +
+                'Escribí <code>BORRAR_TODO</code> para confirmar:',
+          input: 'text',
+          inputPlaceholder: 'BORRAR_TODO',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#dc3545',
+          cancelButtonColor: '#6c757d',
+          confirmButtonText: 'Borrar todo',
+          cancelButtonText: 'Cancelar',
+          preConfirm: function(valor) {
+            if (valor !== 'BORRAR_TODO') {
+              Swal.showValidationMessage('Texto incorrecto. Escribí BORRAR_TODO.');
+              return false;
+            }
+            return valor;
+          }
+        }).then(function(result) {
+          if (!result.isConfirmed) return;
+
+          btnBorrar.disabled = true;
+          btnBorrar.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Borrando...';
+
+          Swal.fire({
+            title: 'Borrando...',
+            html: 'No cierres esta pestaña.',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: function() { Swal.showLoading(); }
+          });
+
+          google.script.run
+            .withSuccessHandler(function(resp) {
+              Swal.close();
+              var data;
+              try { data = JSON.parse(resp); } catch (e) { data = { success: false, message: 'Respuesta inválida.' }; }
+
+              btnBorrar.disabled = false;
+              btnBorrar.innerHTML = '<i class="fas fa-trash mr-1"></i> Borrar TODOS los pedidos';
+
+              if (data && data.success) {
+                Swal.fire({
+                  icon: 'success',
+                  title: '¡Borrado!',
+                  text: data.message
+                }).then(function() {
+                  window.top.location.reload();
+                });
+              } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: (data && data.message) || 'No se pudo borrar.' });
+              }
+            })
+            .withFailureHandler(function(err) {
+              Swal.close();
+              btnBorrar.disabled = false;
+              btnBorrar.innerHTML = '<i class="fas fa-trash mr-1"></i> Borrar TODOS los pedidos';
+              Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+            })
+            .borrarTodo('BORRAR_TODO');
+        });
+      });
+    }
+
+  })();
+</script>
