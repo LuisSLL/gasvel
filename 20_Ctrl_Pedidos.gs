@@ -1,11 +1,15 @@
 /**
  * Controlador de Pedidos (y sus líneas Pedido_Items)
  * Archivo: 20_Ctrl_Pedidos.gs
+ *
+ * Roles que pueden VER y GESTIONAR pedidos: admin, mozo, cocina.
+ * Roles que pueden CREAR pedidos manualmente: admin, mozo.
  */
+
 class Ctrl_Pedidos extends Base_Controller {
 
   index() {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA, CONFIG.ROLES.COCINA])) {
+    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO, CONFIG.ROLES.COCINA])) {
       return this._denyAccess();
     }
 
@@ -17,11 +21,8 @@ class Ctrl_Pedidos extends Base_Controller {
     }, this._getDashboardUserData()), 'Layout_Dashboard');
   }
 
-  /**
-   * Obtiene un pedido con sus items (para el modal de detalle)
-   */
   getById(data) {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA, CONFIG.ROLES.COCINA])) {
+    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO, CONFIG.ROLES.COCINA])) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
     }
 
@@ -37,11 +38,8 @@ class Ctrl_Pedidos extends Base_Controller {
     return JSON.stringify({ success: true, pedido: pedido });
   }
 
-  /**
-   * Cambia el estado de un pedido (PENDIENTE -> EN_PREPARACION -> LISTO -> ENTREGADO, o CANCELADO)
-   */
   updateEstado(data) {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA, CONFIG.ROLES.COCINA])) {
+    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO, CONFIG.ROLES.COCINA])) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
     }
 
@@ -50,14 +48,17 @@ class Ctrl_Pedidos extends Base_Controller {
     }
 
     var result = Pedido_Model.setEstado(data.pedido_id, data.estado);
+
+    // 👇 Devolver pedido_id + estado nuevo
+    if (result && result.success) {
+      result.pedido_id = data.pedido_id;
+      result.estado = data.estado;
+    }
     return JSON.stringify(result);
   }
 
-  /**
-   * Crea un pedido manualmente desde el dashboard (Caja/Admin)
-   */
   create(data) {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA])) {
+    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO])) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
     }
 
@@ -65,12 +66,12 @@ class Ctrl_Pedidos extends Base_Controller {
     data.creado_por_user_id = user ? user.user_id : '';
 
     var result = Pedido_Model.create(data);
+
+    // 👇 Si el modelo devuelve el pedido creado, lo pasamos completo
+    // (Pedido_Model.create ya devuelve { success, message, pedido? })
     return JSON.stringify(result);
   }
 
-  /**
-   * Cancela (elimina lógicamente) un pedido completo, sus items incluidos.
-   */
   delete(data) {
     if (!this._checkAdminPermission()) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
@@ -98,15 +99,14 @@ class Ctrl_Pedidos extends Base_Controller {
 
     Base_Model.delete(CONFIG.DB.PEDIDOS, data.pedido_id);
 
-    return JSON.stringify({ success: true, message: '¡Pedido eliminado junto con sus productos!' });
+    // 👇 Devolver pedido_id eliminado
+    return JSON.stringify({
+      success: true,
+      message: '¡Pedido eliminado junto con sus productos!',
+      pedido_id: data.pedido_id
+    });
   }
 
-  /**
-   * Ticket de cocina de un pedido ya confirmado (página standalone,
-   * pensada para abrirse en una pestaña propia e imprimirse).
-   * No expone precios: la cocina solo necesita saber qué preparar.
-   * Solo puede verlo el staff (Admin/Caja/Cocina) o el usuario dueño del pedido.
-   */
   ticket(data) {
     var sessionUser = this._getSessionUser();
     if (!sessionUser) {
@@ -122,8 +122,9 @@ class Ctrl_Pedidos extends Base_Controller {
       return HtmlService.createHtmlOutput('<h1>Pedido no encontrado</h1>');
     }
 
-    var esStaff = [CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA, CONFIG.ROLES.COCINA]
-      .indexOf(parseInt(sessionUser.rol_id)) !== -1;
+    var esStaff = [CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO, CONFIG.ROLES.COCINA]
+      .indexOf(sessionUser.rol_id) !== -1;
+
     var esDueño = pedido.user_id &&
       String(pedido.user_id).trim() === String(sessionUser.user_id).trim();
 
@@ -138,15 +139,11 @@ class Ctrl_Pedidos extends Base_Controller {
   }
 
   // ==========================================
-  // GESTIÓN DE LÍNEAS (PEDIDO_ITEMS) DE UN PEDIDO EXISTENTE
+  // GESTIÓN DE LÍNEAS (PEDIDO_ITEMS)
   // ==========================================
 
-  /**
-   * Agrega una línea a un pedido ya creado (mientras no esté cerrado) y
-   * recalcula el total del pedido.
-   */
   addItem(data) {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA])) {
+    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO])) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
     }
 
@@ -179,7 +176,7 @@ class Ctrl_Pedidos extends Base_Controller {
     var lineaSubtotal = Math.round(precioUnitario * cantidad * 100) / 100;
 
     var itemId = Base_Model.getNextId(CONFIG.DB.PEDIDO_ITEMS);
-    Base_Model.create(CONFIG.DB.PEDIDO_ITEMS, {
+    var nuevoItem = {
       item_id: itemId,
       pedido_id: pedido.pedido_id,
       product_id: producto.product_id,
@@ -188,18 +185,23 @@ class Ctrl_Pedidos extends Base_Controller {
       precio_unitario: precioUnitario,
       subtotal: lineaSubtotal,
       notas: data.notas || ''
+    };
+    Base_Model.create(CONFIG.DB.PEDIDO_ITEMS, nuevoItem);
+
+    var nuevoTotal = this._recalcularTotal(pedido.pedido_id);
+
+    // 👇 Devolver item + total actualizado
+    return JSON.stringify({
+      success: true,
+      message: 'Producto agregado al pedido',
+      item: nuevoItem,
+      pedido_id: pedido.pedido_id,
+      total: nuevoTotal
     });
-
-    this._recalcularTotal(pedido.pedido_id);
-
-    return JSON.stringify({ success: true, message: 'Producto agregado al pedido' });
   }
 
-  /**
-   * Elimina una línea de un pedido y recalcula el total.
-   */
   removeItem(data) {
-    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.CAJA])) {
+    if (!this._checkRolePermission([CONFIG.ROLES.ADMIN, CONFIG.ROLES.MOZO])) {
       return JSON.stringify({ success: false, message: 'No autorizado' });
     }
 
@@ -215,16 +217,20 @@ class Ctrl_Pedidos extends Base_Controller {
       return JSON.stringify({ success: false, message: 'Línea no encontrada' });
     }
 
+    var pedidoId = item.pedido_id;
     Base_Model.delete(CONFIG.DB.PEDIDO_ITEMS, data.item_id);
-    this._recalcularTotal(item.pedido_id);
+    var nuevoTotal = this._recalcularTotal(pedidoId);
 
-    return JSON.stringify({ success: true, message: 'Producto eliminado del pedido' });
+    // 👇 Devolver item_id + pedido_id + total actualizado
+    return JSON.stringify({
+      success: true,
+      message: 'Producto eliminado del pedido',
+      item_id: data.item_id,
+      pedido_id: pedidoId,
+      total: nuevoTotal
+    });
   }
 
-  /**
-   * Recalcula el subtotal y actualiza el total guardado en PEDIDOS.
-   * Sin impuesto: el total es igual al subtotal de las líneas.
-   */
   _recalcularTotal(pedidoId) {
     var items = Base_Model.all(CONFIG.DB.PEDIDO_ITEMS).filter(function(it) {
       return String(it.pedido_id).trim() === String(pedidoId).trim();
@@ -243,7 +249,7 @@ class Ctrl_Pedidos extends Base_Controller {
 
 globalThis.Ctrl_Pedidos = Ctrl_Pedidos;
 
-// Funciones puente para google.script.run
+// Funciones puente
 function getPedidoById(data) {
   var controller = new Ctrl_Pedidos();
   return controller.getById(data);
@@ -273,6 +279,3 @@ function removePedidoItem(data) {
   var controller = new Ctrl_Pedidos();
   return controller.removeItem(data);
 }
-
-
-
