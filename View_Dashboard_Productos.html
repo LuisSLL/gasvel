@@ -23,16 +23,16 @@
               <th class="text-center">Acciones</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="productosTbody">
             <? if (productos && productos.length > 0) { ?>
               <? for (var i = 0; i < productos.length; i++) { ?>
                 <? var activo = productos[i].activo === true || productos[i].activo.toString().toUpperCase() === 'TRUE'; ?>
-                <tr>
-                  <td><?= productos[i].product_id ?></td>
-                  <td><?= productos[i].nombre ?></td>
-                  <td><?= productos[i].cat_nombre ?></td>
-                  <td><?= formatCurrency(productos[i].precio) ?></td>
-                  <td>
+                <tr id="prod-row-<?= productos[i].product_id ?>">
+                  <td class="prod-id"><?= productos[i].product_id ?></td>
+                  <td class="prod-nombre"><?= productos[i].nombre ?></td>
+                  <td class="prod-cat"><?= productos[i].cat_nombre ?></td>
+                  <td class="prod-precio"><?= formatCurrency(productos[i].precio) ?></td>
+                  <td class="prod-estado">
                     <span class="badge <?= activo ? 'badge-success' : 'badge-secondary' ?>">
                       <?= activo ? 'Activo' : 'Inactivo' ?>
                     </span>
@@ -41,7 +41,7 @@
                     <button class="btn btn-sm btn-warning" onclick="openEditProductoModal(<?= productos[i].product_id ?>)" title="Editar">
                       <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm <?= activo ? 'btn-secondary' : 'btn-success' ?>" onclick="toggleProducto(<?= productos[i].product_id ?>)" title="<?= activo ? 'Desactivar' : 'Activar' ?>">
+                    <button class="btn btn-sm <?= activo ? 'btn-secondary' : 'btn-success' ?> btn-toggle-prod" onclick="toggleProducto(<?= productos[i].product_id ?>)" title="<?= activo ? 'Desactivar' : 'Activar' ?>">
                       <i class="fas <?= activo ? 'fa-eye-slash' : 'fa-eye' ?>"></i>
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="confirmDeleteProducto(<?= productos[i].product_id ?>)" title="Eliminar">
@@ -177,11 +177,11 @@
 <script>
   var baseUrl = (typeof SCRIPT_URL !== 'undefined' && SCRIPT_URL) ? SCRIPT_URL : '<?= scriptUrl ?>';
   var __productosData = <?!= json_encode(productos) ?>;
+  var __categoriasData = <?!= json_encode(categorias) ?>;
 
-  /**
-   * Muestra una vista previa de la imagen a partir de la URL escrita/pegada
-   * en el campo, con feedback claro si la URL no carga.
-   */
+  // ==========================================
+  // PREVIEW DE IMAGEN (sin cambios)
+  // ==========================================
   window.previewImagenUrl = function(inputId, previewBoxId) {
     var url = (document.getElementById(inputId).value || '').trim();
     var box = document.getElementById(previewBoxId);
@@ -207,24 +207,163 @@
     img.src = url;
   };
 
-  window.openEditProductoModal = function(productId) {
-    var prod = __productosData.find(function(p) { return String(p.product_id) === String(productId); });
+  // ==========================================
+  // HELPERS DE FORMATO Y RENDER
+  // ==========================================
 
-    if (prod) {
-      document.getElementById('edit_prod_id').value = prod.product_id;
-      document.getElementById('edit_prod_nombre').value = prod.nombre || '';
-      document.getElementById('edit_prod_desc').value = prod.descripcion || '';
-      document.getElementById('edit_prod_precio').value = prod.precio || 0;
-      document.getElementById('edit_prod_cat').value = prod.cat_id;
-      document.getElementById('edit_prod_tiempo').value = prod.tiempo_preparacion || 0;
-      document.getElementById('edit_prod_imagen').value = prod.imagen_url || '';
-      previewImagenUrl('edit_prod_imagen', 'edit_prod_imagen_preview');
-      $('#modalEditarProducto').modal('show');
-    } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Producto no encontrado' });
+  function formatCurrencyLocal(amount) {
+    var n = parseFloat(amount) || 0;
+    return '$ ' + n.toFixed(2);
+  }
+
+  function prodEsc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderFilaProducto(p) {
+    var activo = p.activo === true || String(p.activo).toUpperCase() === 'TRUE';
+    return '' +
+      '<tr id="prod-row-' + p.product_id + '">' +
+        '<td class="prod-id">' + p.product_id + '</td>' +
+        '<td class="prod-nombre">' + prodEsc(p.nombre) + '</td>' +
+        '<td class="prod-cat">' + prodEsc(p.cat_nombre || 'Sin categoría') + '</td>' +
+        '<td class="prod-precio">' + formatCurrencyLocal(p.precio) + '</td>' +
+        '<td class="prod-estado">' +
+          '<span class="badge ' + (activo ? 'badge-success' : 'badge-secondary') + '">' +
+            (activo ? 'Activo' : 'Inactivo') +
+          '</span>' +
+        '</td>' +
+        '<td class="text-center">' +
+          '<button class="btn btn-sm btn-warning" onclick="openEditProductoModal(' + p.product_id + ')" title="Editar">' +
+            '<i class="fas fa-edit"></i>' +
+          '</button> ' +
+          '<button class="btn btn-sm ' + (activo ? 'btn-secondary' : 'btn-success') + ' btn-toggle-prod" onclick="toggleProducto(' + p.product_id + ')" title="' + (activo ? 'Desactivar' : 'Activar') + '">' +
+            '<i class="fas ' + (activo ? 'fa-eye-slash' : 'fa-eye') + '"></i>' +
+          '</button> ' +
+          '<button class="btn btn-sm btn-danger" onclick="confirmDeleteProducto(' + p.product_id + ')" title="Eliminar">' +
+            '<i class="fas fa-trash"></i>' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  }
+
+  function actualizarFilaProducto(productId, data) {
+    var tr = document.getElementById('prod-row-' + productId);
+    if (!tr) return;
+
+    if (data.nombre !== undefined) {
+      tr.querySelector('.prod-nombre').textContent = data.nombre;
     }
+    if (data.cat_nombre !== undefined) {
+      tr.querySelector('.prod-cat').textContent = data.cat_nombre;
+    }
+    if (data.precio !== undefined) {
+      tr.querySelector('.prod-precio').textContent = formatCurrencyLocal(data.precio);
+    }
+    if (data.activo !== undefined) {
+      var activo = data.activo === true || String(data.activo).toUpperCase() === 'TRUE';
+
+      // Badge
+      var badge = tr.querySelector('.prod-estado .badge');
+      if (badge) {
+        badge.className = 'badge ' + (activo ? 'badge-success' : 'badge-secondary');
+        badge.textContent = activo ? 'Activo' : 'Inactivo';
+      }
+
+      // Botón toggle
+      var toggleBtn = tr.querySelector('.btn-toggle-prod');
+      if (toggleBtn) {
+        toggleBtn.className = 'btn btn-sm ' + (activo ? 'btn-secondary' : 'btn-success') + ' btn-toggle-prod';
+        toggleBtn.title = activo ? 'Desactivar' : 'Activar';
+        toggleBtn.innerHTML = '<i class="fas ' + (activo ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
+      }
+    }
+
+    // Actualizar caché
+    var idx = __productosData.findIndex(function(p) {
+      return String(p.product_id) === String(productId);
+    });
+    if (idx !== -1) {
+      if (data.nombre !== undefined) __productosData[idx].nombre = data.nombre;
+      if (data.cat_nombre !== undefined) __productosData[idx].cat_nombre = data.cat_nombre;
+      if (data.cat_id !== undefined) __productosData[idx].cat_id = data.cat_id;
+      if (data.descripcion !== undefined) __productosData[idx].descripcion = data.descripcion;
+      if (data.precio !== undefined) __productosData[idx].precio = data.precio;
+      if (data.imagen_url !== undefined) __productosData[idx].imagen_url = data.imagen_url;
+      if (data.tiempo_preparacion !== undefined) __productosData[idx].tiempo_preparacion = data.tiempo_preparacion;
+      if (data.activo !== undefined) __productosData[idx].activo = data.activo;
+    }
+  }
+
+  function agregarFilaProducto(p) {
+    var tbody = document.getElementById('productosTbody');
+    if (!tbody) return;
+
+    tbody.insertAdjacentHTML('beforeend', renderFilaProducto(p));
+    __productosData.push(p);
+
+    // Reordenar por product_id
+    var filas = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    filas.sort(function(a, b) {
+      var idA = parseInt(a.querySelector('.prod-id').textContent, 10) || 0;
+      var idB = parseInt(b.querySelector('.prod-id').textContent, 10) || 0;
+      return idA - idB;
+    });
+    filas.forEach(function(f) { tbody.appendChild(f); });
+
+    // Animación de entrada
+    var nuevaFila = document.getElementById('prod-row-' + p.product_id);
+    if (nuevaFila) {
+      nuevaFila.style.opacity = '0';
+      nuevaFila.style.transition = 'opacity .3s ease';
+      requestAnimationFrame(function() { nuevaFila.style.opacity = '1'; });
+    }
+  }
+
+  function eliminarFilaProducto(productId) {
+    var tr = document.getElementById('prod-row-' + productId);
+    if (!tr) return;
+
+    tr.style.transition = 'opacity .3s ease';
+    tr.style.opacity = '0';
+    setTimeout(function() {
+      tr.remove();
+      __productosData = __productosData.filter(function(p) {
+        return String(p.product_id) !== String(productId);
+      });
+    }, 300);
+  }
+
+  // ==========================================
+  // ABRIR MODAL EDITAR
+  // ==========================================
+  window.openEditProductoModal = function(productId) {
+    var prod = __productosData.find(function(p) {
+      return String(p.product_id) === String(productId);
+    });
+
+    if (!prod) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Producto no encontrado' });
+      return;
+    }
+
+    document.getElementById('edit_prod_id').value = prod.product_id;
+    document.getElementById('edit_prod_nombre').value = prod.nombre || '';
+    document.getElementById('edit_prod_desc').value = prod.descripcion || '';
+    document.getElementById('edit_prod_precio').value = prod.precio || 0;
+    document.getElementById('edit_prod_cat').value = prod.cat_id;
+    document.getElementById('edit_prod_tiempo').value = prod.tiempo_preparacion || 0;
+    document.getElementById('edit_prod_imagen').value = prod.imagen_url || '';
+    previewImagenUrl('edit_prod_imagen', 'edit_prod_imagen_preview');
+    $('#modalEditarProducto').modal('show');
   };
 
+  // Limpiar el modal de creación al cerrarlo
   document.addEventListener('DOMContentLoaded', function() {
     $('#modalCrearProducto').on('hidden.bs.modal', function() {
       document.getElementById('formCrearProducto').reset();
@@ -232,8 +371,17 @@
     });
   });
 
+  // ==========================================
+  // CREAR (en vivo)
+  // ==========================================
   window.guardarProducto = function(event) {
     event.preventDefault();
+
+    var btn = document.querySelector('#formCrearProducto button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Creando...';
+
     var payload = {
       nombre: document.getElementById('create_prod_nombre').value,
       descripcion: document.getElementById('create_prod_desc').value,
@@ -245,25 +393,56 @@
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalCrearProducto').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Producto creado!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/productos';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          if (data.producto) {
+            agregarFilaProducto(data.producto);
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Producto creado!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
       .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
         Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .createProducto(payload);
   };
 
+  // ==========================================
+  // ACTUALIZAR (en vivo)
+  // ==========================================
   window.actualizarProducto = function(event) {
     event.preventDefault();
+
+    var btn = document.querySelector('#formEditarProducto button[type="submit"]');
+    var originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando...';
+
+    var productId = document.getElementById('edit_prod_id').value;
     var payload = {
-      product_id: document.getElementById('edit_prod_id').value,
+      product_id: productId,
       nombre: document.getElementById('edit_prod_nombre').value,
       descripcion: document.getElementById('edit_prod_desc').value,
       precio: document.getElementById('edit_prod_precio').value,
@@ -274,63 +453,147 @@
 
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
         if (data.success) {
           $('#modalEditarProducto').modal('hide');
-          Swal.fire({ icon: 'success', title: '¡Producto actualizado!', timer: 2000 });
-          window.top.location.href = baseUrl + '?p=dashboard/productos';
+
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          if (data.producto) {
+            actualizarFilaProducto(productId, data.producto);
+          } else {
+            // Fallback por si el backend no devuelve el objeto
+            var catSel = document.getElementById('edit_prod_cat');
+            var catNombre = catSel.options[catSel.selectedIndex].text;
+            actualizarFilaProducto(productId, {
+              nombre: payload.nombre,
+              descripcion: payload.descripcion,
+              precio: parseFloat(payload.precio),
+              cat_id: parseInt(payload.cat_id, 10),
+              cat_nombre: catNombre,
+              imagen_url: payload.imagen_url,
+              tiempo_preparacion: parseInt(payload.tiempo_preparacion, 10) || 0
+            });
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: '¡Producto actualizado!',
+            timer: 1200,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
       .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
         Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .updateProducto(payload);
   };
 
+  // ==========================================
+  // TOGGLE ACTIVO (en vivo)
+  // ==========================================
   window.toggleProducto = function(productId) {
+    var tr = document.getElementById('prod-row-' + productId);
+    var btn = tr ? tr.querySelector('.btn-toggle-prod') : null;
+    var originalHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    }
+
     google.script.run
       .withSuccessHandler(function(response) {
-        var data = JSON.parse(response);
+        var data;
+        try {
+          data = (typeof response === 'string') ? JSON.parse(response) : response;
+        } catch (e) {
+          data = { success: false, message: 'Respuesta inválida' };
+        }
+
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalHTML;
+        }
+
         if (data.success) {
-          Swal.fire({ icon: 'success', title: data.message, timer: 1500, showConfirmButton: false });
-          window.top.location.href = baseUrl + '?p=dashboard/productos';
+          // 🔥 ACTUALIZACIÓN EN VIVO
+          actualizarFilaProducto(productId, { activo: data.activo });
+
+          Swal.fire({
+            icon: 'success',
+            title: data.message,
+            timer: 1000,
+            showConfirmButton: false
+          });
         } else {
           Swal.fire({ icon: 'error', title: 'Error', text: data.message });
         }
       })
       .withFailureHandler(function(err) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalHTML;
+        }
         Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
       })
       .toggleProductoActivo({ product_id: productId });
   };
 
+  // ==========================================
+  // ELIMINAR (en vivo)
+  // ==========================================
   window.confirmDeleteProducto = function(productId) {
     Swal.fire({
       title: '¿Eliminar este producto?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#E2572B',
-      confirmButtonText: 'Sí, eliminar'
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
     }).then(function(result) {
-      if (result.isConfirmed) {
-        google.script.run
-          .withSuccessHandler(function(response) {
-            var data = JSON.parse(response);
-            if (data.success) {
-              Swal.fire({ icon: 'success', title: '¡Producto eliminado!', timer: 2000 });
-              window.top.location.href = baseUrl + '?p=dashboard/productos';
-            } else {
-              Swal.fire({ icon: 'error', title: 'Error', text: data.message });
-            }
-          })
-          .deleteProducto({ product_id: productId });
-      }
+      if (!result.isConfirmed) return;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          var data;
+          try {
+            data = (typeof response === 'string') ? JSON.parse(response) : response;
+          } catch (e) {
+            data = { success: false, message: 'Respuesta inválida' };
+          }
+
+          if (data.success) {
+            // 🔥 ELIMINACIÓN EN VIVO
+            eliminarFilaProducto(productId);
+
+            Swal.fire({
+              icon: 'success',
+              title: '¡Producto eliminado!',
+              timer: 1200,
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire({ icon: 'error', title: 'Error de conexión', text: err.message });
+        })
+        .deleteProducto({ product_id: productId });
     });
   };
 </script>
-
-
-
-
-
